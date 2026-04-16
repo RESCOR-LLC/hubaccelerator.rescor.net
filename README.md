@@ -86,10 +86,17 @@ Legacy CloudFormation templates are retained in `cfn/` for reference.
 
 ### Install
 
+From the repository root (where `pyproject.toml` is):
+
 ```bash
+cd hubaccelerator.rescor.net
 pip install .
-# Or for development:
+
+# Or for development (editable — changes take effect immediately):
 pip install -e .
+
+# Or install directly from GitHub:
+pip install git+https://github.com/RESCOR-LLC/hubaccelerator.rescor.net.git
 ```
 
 This installs two commands available from any directory:
