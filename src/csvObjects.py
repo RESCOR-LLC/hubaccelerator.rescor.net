@@ -7,6 +7,7 @@ import os
 import time
 import re
 import logging
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from botocore import exceptions
 from botocore.exceptions import ClientError
 from boto3.session import Session
@@ -1203,48 +1204,55 @@ class HubActor (Actor):
 
         return response
     #---------------------------------------------------------------------------
+    def _downloadRegion(self, region: str, filters: dict, limit: int) -> list:
+        """Download findings from a single region. Thread-safe (boto3 clients are thread-safe)."""
+        findings = []
+        client = self.client[region]
+
+        try:
+            paginator = client.get_paginator('get_findings')
+            page_config = {'MaxItems': limit} if limit > 0 else {}
+            pages = paginator.paginate(
+                Filters=filters,
+                PaginationConfig={**page_config, 'PageSize': 100}
+            )
+
+            for page in pages:
+                batch = page.get("Findings", [])
+                findings += batch
+                if limit > 0 and len(findings) >= limit:
+                    break
+
+        except client.exceptions.InvalidAccessException as thrown:
+            _LOGGER.error(f'cannot retrieve findings for region {region}: '
+                f'{thrown.response["Error"]["Message"]}')
+
+        _LOGGER.info(f'retrieved {len(findings)} findings from {region}')
+        return findings
+
     def downloadFindings (self, regions=None, filters={}, limit=0):
         """
-        Get findings from Security Hub using the paginator API,
-        applying filters as necessary, and limiting results as necessary.
+        Get findings from Security Hub across all configured regions.
+        Uses parallel threads for multi-region scans (one thread per region).
         """
         regions = self.regions
         self.findings = []
-        downloaded = 0
 
-        for region in regions:
-            _LOGGER.info(f'retrieving findings from region {region}')
-            client = self.client[region]
-
-            try:
-                paginator = client.get_paginator('get_findings')
-                page_config = {'MaxItems': limit} if limit > 0 else {}
-                pages = paginator.paginate(
-                    Filters=filters,
-                    PaginationConfig={**page_config, 'PageSize': 100}
-                )
-
-                for page in pages:
-                    findings = page.get("Findings", [])
-                    self.findings += findings
-                    downloaded += len(findings)
-
-                    if downloaded % 1000 == 0 and downloaded > 0:
-                        _LOGGER.info(f'... {downloaded:8d} findings retrieved')
-
-                    if limit > 0 and downloaded >= limit:
-                        _LOGGER.info(f'{downloaded} findings reached limit of {limit}')
-                        break
-
-                if limit > 0 and downloaded >= limit:
-                    break
-
-            except client.exceptions.InvalidAccessException as thrown:
-                _LOGGER.error(f'cannot retrieve findings for region {region}: '
-                    f'{thrown.response["Error"]["Message"]}')
+        if len(regions) == 1:
+            # Single region — no threading overhead
+            self.findings = self._downloadRegion(regions[0], filters, limit)
+        else:
+            # Multi-region — parallel download
+            with ThreadPoolExecutor(max_workers=min(len(regions), 10)) as pool:
+                futures = {
+                    pool.submit(self._downloadRegion, r, filters, limit): r
+                    for r in regions
+                }
+                for future in as_completed(futures):
+                    self.findings += future.result()
 
         self.count = len(self.findings)
-        _LOGGER.info(f'retrieved {downloaded} total findings from {len(regions)} region(s)')
+        _LOGGER.info(f'retrieved {self.count} total findings from {len(regions)} region(s)')
 
         return self.findings
     #---------------------------------------------------------------------------
