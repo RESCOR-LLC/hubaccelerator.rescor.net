@@ -73,7 +73,7 @@ def executor (role=None, region=None, debug=False, input=None):
 
     # Get a list of Security Hub regions we wish to act on
     regions = csvo.choose({
-        'Environment variable CSV_SECURITYHUB_REGIONLIST': os.environ.get("CSV_SECURITYHUB_REGIONLIST"),
+        'Environment variable HUBACCELERATOR_REGIONLIST': csvo.env("HUBACCELERATOR_REGIONLIST"),
         'SSM region list /csvManager/regionList': re.compile("\s*,\s*").split(getattr(ssmActor, "/csvManager/regionList", region)),
         'ssm:getSupportedRegions API': ssmActor.getSupportedRegions(service="securityhub")
     })

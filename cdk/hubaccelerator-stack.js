@@ -161,7 +161,7 @@ class HubAcceleratorStack extends Stack {
       timeout: Duration.minutes(15),
       memorySize: 512,
       environment: {
-        CSV_PRIMARY_REGION: this.region,
+        HUBACCELERATOR_REGION: this.region,
       },
     });
 
@@ -175,7 +175,7 @@ class HubAcceleratorStack extends Stack {
       timeout: Duration.minutes(15),
       memorySize: 512,
       environment: {
-        CSV_PRIMARY_REGION: this.region,
+        HUBACCELERATOR_REGION: this.region,
       },
     });
 

@@ -3,6 +3,7 @@
 
 import boto3
 import botocore
+import os
 import time
 import re
 import logging
@@ -23,6 +24,29 @@ logging.basicConfig(level=_DEFAULT_LOGGING_LEVEL)
 # Retrieve the logging instance
 _LOGGER = logging.getLogger()
 _LOGGER.setLevel(_DEFAULT_LOGGING_LEVEL)
+
+# ---------------------------------------------------------------------------
+# Environment variable migration: HUBACCELERATOR_* (new) ← CSV_* (legacy)
+# ---------------------------------------------------------------------------
+_ENV_MIGRATION = {
+    'HUBACCELERATOR_REGIONLIST':    'CSV_SECURITYHUB_REGIONLIST',
+    'HUBACCELERATOR_REGION':        'CSV_PRIMARY_REGION',
+    'HUBACCELERATOR_BUCKET':        'CSV_SECURITYHUB_BUCKET',
+}
+
+def env(name: str, default: str = None) -> str:
+    """Read an environment variable, falling back to its legacy name if the
+    new name is not set. Logs a deprecation warning on legacy hit."""
+    value = os.environ.get(name)
+    if value is not None:
+        return value
+    legacy = _ENV_MIGRATION.get(name)
+    if legacy:
+        value = os.environ.get(legacy)
+        if value is not None:
+            _LOGGER.warning(f'env: {legacy} is deprecated — rename to {name}')
+            return value
+    return default
 
 def error_code(exception: Exception) -> str:
     """Extract error code from botocore ClientError, or return exception type name."""

@@ -88,7 +88,7 @@ def executor (role=None, region=None, filters=None, bucket=None, limit=0,
 
     # Get a list of Security Hub regions we wish to act on
     regions = csvo.choose({
-        'Environment variable CSV_SECURITYHUB_REGIONLIST': os.environ.get("CSV_SECURITYHUB_REGIONLIST"),
+        'Environment variable HUBACCELERATOR_REGIONLIST': csvo.env("HUBACCELERATOR_REGIONLIST"),
         'SSM region list /csvManager/regionList': re.compile("\s*,\s*").split(getattr(ssmActor, "/csvManager/regionList", region)),
         'ssm:getSupportedRegions API': ssmActor.getSupportedRegions(service="securityhub")
     })
@@ -191,7 +191,7 @@ def lambdaHandler ( event = None, context = None ):
 
     # If no region is specified it must be obtains from the environments
     if not region:
-        region = os.environ.get("CSV_PRIMARY_REGION")
+        region = csvo.env("HUBACCELERATOR_REGION")
         _LOGGER.info(f"493130i obtained region {region} from environment")
 
     # This is where we will store the result
