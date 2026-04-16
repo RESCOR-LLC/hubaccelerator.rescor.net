@@ -3,11 +3,19 @@
 
 import boto3
 import botocore
+from botocore.config import Config as BotoConfig
 import os
 import time
 import re
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+
+# Retry configuration — adaptive mode handles throttling with exponential backoff
+_BOTO_CONFIG = BotoConfig(
+    retries={'max_attempts': 5, 'mode': 'adaptive'},
+    connect_timeout=10,
+    read_timeout=30,
+)
 from botocore import exceptions
 from botocore.exceptions import ClientError
 from boto3.session import Session
@@ -795,7 +803,7 @@ class Actor:
         # Create a client for each region from the shared session
         for r in self.regions:
             _LOGGER.debug(f"creating {self.service} client in region {r}")
-            self.client[r] = self.session.client(self.service, region_name=r)
+            self.client[r] = self.getClient(r)
     #---------------------------------------------------------------------------
     def getPartition(self, region:str) -> str:
         """
@@ -834,9 +842,10 @@ class Actor:
     def getClient (self, region:str) -> object:
         """
         Create an AWS API client from the shared session for a specific region.
+        Uses adaptive retry with exponential backoff for throttling resilience.
         """
         try:
-            client = self.session.client(self.service, region_name=region)
+            client = self.session.client(self.service, region_name=region, config=_BOTO_CONFIG)
         except Exception as thrown:
             _LOGGER.critical(f'error obtaining client for {self.service} in {region}: {thrown}')
             client = None
