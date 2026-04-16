@@ -1,5 +1,5 @@
 #!/usr/local/bin/python3
-# Objects used in CsvManager
+# Objects used in HubAccelerator
 # Update 20200827
 # Update 20210225 - Make it work with GovCloud
 
@@ -361,7 +361,7 @@ class Finding:
     #---------------------------------------------------------------------------
     def mapFinding (self, initializer=None):
         """
-        Convert an CSV Manager record to a SecurityHub finding dictionary
+        Convert an HubAccelerator record to a SecurityHub finding dictionary
         """
         finding = {}
 

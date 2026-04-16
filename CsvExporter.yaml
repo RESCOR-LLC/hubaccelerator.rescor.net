@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: >-
-    Provision CSV Manager for Security Hub Export Lambda, Event, and Automation.
+    Provision HubAccelerator Export Lambda, Event, and Automation.
 Parameters: 
   Frequency:
     Type: String
@@ -15,7 +15,7 @@ Parameters:
   CodeArchive:
     Type: String
     Description: The code archive S3 key returned by csvPrepare.py
-    Default: "Code/CsvManager.zip"
+    Default: "Code/HubAccelerator.zip"
   PrimaryRegion:
     Type: String
     Description: "The region in which the S3 bucket and SSM parameters are stored"
@@ -44,7 +44,7 @@ Resources:
             Service: !FindInMap [ PartitionMap, !Ref AWS::Partition, "principals" ]
           Action: sts:AssumeRole
       Policies:
-        - PolicyName: CsvManagerForSecurityHub
+        - PolicyName: HubAcceleratorForSecurityHub
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
@@ -132,9 +132,9 @@ Resources:
       DocumentType: "Automation"
       Content:
         description: |-
-          # Generate a Security Hub Findings Export (CSV Manager for Security Hub)
+          # Generate a Security Hub Findings Export (HubAccelerator)
           This Systems Manager (SSM) Automation allows you to generate a 
-          CSV Manager for Security Hub export outside the normal export schedule. 
+          HubAccelerator export outside the normal export schedule. 
         schemaVersion: '0.3'
         assumeRole: !GetAtt Role.Arn
         parameters:
@@ -147,12 +147,12 @@ Resources:
           Partition:
             type: String
             default: !Ref "AWS::Partition"
-            description: The partition in which CSV Manager for Security Hub will operate
+            description: The partition in which HubAccelerator will operate
           Regions:
             type: String
             default: !Sub "{{resolve:ssm:/csvManager/regionList}}"
             description: >- 
-                The comma-separated list of regions in which CSV Manager for Security Hub
+                The comma-separated list of regions in which HubAccelerator
                 will operate
         mainSteps:
         - name: InvokeLambda
@@ -161,7 +161,7 @@ Resources:
             InvocationType: RequestResponse
             FunctionName: !GetAtt Lambda.Arn
             Payload: '{ "filters" : "{{Filters}}" , "partition" : "{{Partition}}", "regions" : "[ {{Regions}} ]"}'
-          description: Invoke the CSV Manager for Security Hub lambda function
+          description: Invoke the HubAccelerator lambda function
           outputs:
           - Name: resultCode
             Selector: $.Payload.resultCode

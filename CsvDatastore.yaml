@@ -23,22 +23,22 @@ Parameters:
     Default: 31
   Partition:
     Type: String
-    Description: "The partition in which CSV Manager for Security Hub will operate"
+    Description: "The partition in which HubAccelerator will operate"
     Default: ""
   Regions:
     Type: String
-    Description: "The comma-delimeted list of regions in which CSV Manager for Security Hub will operate"
+    Description: "The comma-delimeted list of regions in which HubAccelerator will operate"
     Default: ""
 Metadata:
   AWS::CloudFormation::Interface:
     ParameterGroups:
       - Label:
-          default: "CSV Manager for Security Hub Findings Datastore Details"
+          default: "HubAccelerator Findings Datastore Details"
         Parameters:
         - CodeFolder
         - FindingsFolder
       - Label:
-          default: "CSV Manager for Security Hub Operating Environment"
+          default: "HubAccelerator Operating Environment"
         Parameters:
         - Partition
         - Region
@@ -51,9 +51,9 @@ Metadata:
         - ExpirationPeriod      
     ParameterLabels:
         CodeFolder:
-          default: "What folder for CSV Manager for Security Hub code?"
+          default: "What folder for HubAccelerator code?"
         FindingsFolder:
-          default: "What folder for CSV Manager for Security Hub exports?"
+          default: "What folder for HubAccelerator exports?"
         AccessPrincipals:
           default: "Who can access this bucket?"
         GlacierTransitionPeriod:
@@ -61,9 +61,9 @@ Metadata:
         ExpirationPeriod:
           default: "How long before deleting old exports?"
         Partition:
-          default: "In what partition will CSV Manager for Security Hub operate?"
+          default: "In what partition will HubAccelerator operate?"
         Regions:
-          default: "In what comma-separated list of regions will CSV Manager for Security Hub operate?"
+          default: "In what comma-separated list of regions will HubAccelerator operate?"
 Resources:  
   Bucket:
     Type: AWS::S3::Bucket
@@ -118,21 +118,21 @@ Resources:
   CodeFolderParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Description: The folder where CSV Manager for Security Hub code is stored
+      Description: The folder where HubAccelerator code is stored
       Name: !Sub "/csvManager/folder/code"
       Type: String
       Value: !Ref CodeFolder
   FindingsFolderParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Description: The folder where CSV Manager for Security Hub findings are exported
+      Description: The folder where HubAccelerator findings are exported
       Name: !Sub "/csvManager/folder/findings"
       Type: String
       Value: !Ref FindingsFolder
   ArchiveKeyParameter:
     Type: AWS::SSM::Parameter
     Properties:
-      Description: The name of the ZIP archive containing CSV Manager for Security Hub Lambda code
+      Description: The name of the ZIP archive containing HubAccelerator Lambda code
       Name: !Sub "/csvManager/object/codeArchive"
       Type: String
       Value: "Not Initialized"
@@ -140,14 +140,14 @@ Resources:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub "/csvManager/partition"
-      Description: The partition in which CSV Manager for Security Hub will operate
+      Description: The partition in which HubAccelerator will operate
       Type: String
       Value: !Ref Partition
   RegionParameter:
     Type: AWS::SSM::Parameter
     Properties:
       Name: !Sub "/csvManager/regionList"
-      Description: The list of regions in which CSV Manager for Security Hub will operate
+      Description: The list of regions in which HubAccelerator will operate
       Type: StringList
       Value: !Ref Regions
 Outputs:
@@ -155,44 +155,44 @@ Outputs:
     Description: ARN of the bucket we wish to use
     Value: !GetAtt Bucket.Arn
     Export:
-      Name: "CsvManager::BucketArn"
+      Name: "HubAccelerator::BucketArn"
   BucketName:
     Description: The bucket name created by this stack
     Value: !Ref Bucket
     Export:
-      Name: "CsvManager::BucketName"
+      Name: "HubAccelerator::BucketName"
   CodeFolderParameterName:
     Description: The name of the CodeFolder SSM parameter
     Value: !Ref CodeFolderParameter
     Export:
-      Name: "CsvManager::CodeFolderParameterName"
+      Name: "HubAccelerator::CodeFolderParameterName"
   FindingsFolderParameterName:
     Description: The name of the CodeFolder SSM parameter
     Value: !Ref CodeFolderParameter
     Export:
-      Name: "CsvManager::FindingFolderParameterName"
+      Name: "HubAccelerator::FindingFolderParameterName"
   ArchiveKeyParameterName:
     Description: The code ZIP file object key
     Value: !Ref ArchiveKeyParameter
     Export:
-      Name: "CsvManager::ArchiveKeyParameterName"
+      Name: "HubAccelerator::ArchiveKeyParameterName"
   PartitionParameterName:
     Description: The name of the partition SSM parameter
     Value: !Ref PartitionParameter
     Export:
-      Name: "CsvManager::PartitionParameterName"
+      Name: "HubAccelerator::PartitionParameterName"
   RegionParameterName:
     Description: The name of the allowed regions SSM parameter
     Value: !Ref RegionParameter
     Export:
-      Name: "CsvManager::RegionParameterName"
+      Name: "HubAccelerator::RegionParameterName"
   PartitionName:
     Description: "The partition name"
     Value: !Ref Partition
     Export:
-      Name: "CsvManager::Partition"
+      Name: "HubAccelerator::Partition"
   RegionList:
     Description: "The list of supported regions"
     Value: !Ref Regions
     Export:
-      Name: "CsvManager::Regions"
+      Name: "HubAccelerator::Regions"

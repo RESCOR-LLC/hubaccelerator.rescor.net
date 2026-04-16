@@ -1,10 +1,10 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Provision CSV Manager for Security Hub Update Lambda, Event, and Automation.
+Description: Provision HubAccelerator Update Lambda, Event, and Automation.
 Parameters: 
   CodeArchive:
     Type: String
     Description: The code archive S3 key returned by csvPrepare.py 
-    Default: "Code/CsvManager.zip"
+    Default: "Code/HubAccelerator.zip"
   PrimaryRegion:
     Type: String
     Description: "The region in which the S3 bucket and SSM parameters are stored"
@@ -33,7 +33,7 @@ Resources:
             Service: !FindInMap [ PartitionMap, !Ref AWS::Partition, "principals" ]
           Action: sts:AssumeRole
       Policies:
-        - PolicyName: CsvManagerForSecurityHub
+        - PolicyName: HubAcceleratorForSecurityHub
           PolicyDocument:
             Version: '2012-10-17'
             Statement:

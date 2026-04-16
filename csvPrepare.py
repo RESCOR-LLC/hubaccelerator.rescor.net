@@ -1,6 +1,6 @@
 #!/opt/homebrew/bin/python3
 """
-Prepare distribution ZIP file for CSV Manager for Security Hub. 
+Prepare distribution ZIP file for HubAccelerator. 
 The following parameters may be specified (use csvPrepare.py -h for help):
 
 --role-arn ROLE_ARN 
@@ -75,7 +75,7 @@ if __name__ == "__main__":
     # Name of zip file to contain source code
     pattern = re.compile(r'\.py$|\.yaml$|\.doc[x]*$')
     directory = arguments.sourceDirectory
-    filename = "CsvManagerForSecurityHub-" + time.strftime("%Y%m%d-%H%M%S") + ".zip"
+    filename = "HubAcceleratorForSecurityHub-" + time.strftime("%Y%m%d-%H%M%S") + ".zip"
     inputFile = directory + "/" + filename
 
     # Build zip file
@@ -91,7 +91,7 @@ if __name__ == "__main__":
 
     # Set the name of the current code archive (zip file)
     ssmActor.putValue("/csvManager/object/codeArchive", 
-        "CSV Manager for Security Hub Code Archive", outputObject)
+        "HubAccelerator Code Archive", outputObject)
 
     _LOGGER.info("(r) IMPORTANT! Provide the following value " + \
         "for the \"code archive S3 key\" parameter in the " + \
