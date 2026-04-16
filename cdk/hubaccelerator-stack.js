@@ -28,7 +28,6 @@ class HubAcceleratorStack extends Stack {
   constructor(scope, id, props) {
     super(scope, id, props);
 
-    const codeFolder = props?.codeFolder || 'Code';
     const findingsFolder = props?.findingsFolder || 'Findings';
     const exportSchedule = props?.exportSchedule || 'cron(0 8 ? * SUN *)';
     const exportFilter = props?.exportFilter || 'HighActive';
@@ -66,12 +65,6 @@ class HubAcceleratorStack extends Stack {
       parameterName: '/csvManager/bucket',
       stringValue: bucket.bucketName,
       description: 'HubAccelerator S3 bucket name',
-    });
-
-    new ssm.StringParameter(this, 'ParamCodeFolder', {
-      parameterName: '/csvManager/folder/code',
-      stringValue: codeFolder,
-      description: 'S3 prefix for Lambda code archives',
     });
 
     new ssm.StringParameter(this, 'ParamFindingsFolder', {

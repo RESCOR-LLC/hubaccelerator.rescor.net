@@ -928,12 +928,10 @@ class SsmActor (Actor):
     ssm:GetParameters
     """
     _PARAMETERS = [
-        "/csvManager/bucket", 
-        "/csvManager/folder/code", 
-        "/csvManager/folder/findings", 
-        "/csvManager/object/codeArchive",
+        "/csvManager/bucket",
+        "/csvManager/folder/findings",
         "/csvManager/partition",
-        "/csvManager/regionList"
+        "/csvManager/regionList",
     ]
     #---------------------------------------------------------------------------
     def __init__ (self, region=None, role=None, resolve=_PARAMETERS):

@@ -1,0 +1,47 @@
+direction: right
+
+title: {
+  label: "Bulk Update from CSV"
+  near: top-center
+  shape: text
+  style.font-size: 20
+  style.bold: true
+}
+
+source: {
+  label: ""
+  style.fill: transparent
+  style.stroke: transparent
+
+  s3: "S3 Bucket\nmodified CSV" {
+    shape: rectangle
+    style.fill: "#E8F5E9"
+    style.stroke: "#2E7D32"
+    style.font-size: 13
+  }
+
+  local: "Local File\nmodified CSV" {
+    shape: rectangle
+    style.fill: "#FFF3E0"
+    style.stroke: "#E65100"
+    style.font-size: 13
+  }
+}
+
+workstation: "Workstation\nhubaccelerator-update" {
+  shape: rectangle
+  style.fill: "#E3F2FD"
+  style.stroke: "#1565C0"
+  style.font-size: 13
+}
+
+securityhub: "Security Hub\nbatch_update_findings" {
+  shape: rectangle
+  style.fill: "#F3E5F5"
+  style.stroke: "#6A1B9A"
+  style.font-size: 13
+}
+
+source.s3 -> workstation: "--input s3://..."
+source.local -> workstation: "--input /path/..."
+workstation -> securityhub: "batched updates\n(100 per call)"

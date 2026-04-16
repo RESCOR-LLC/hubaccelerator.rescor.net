@@ -23,21 +23,22 @@ AWS Security Hub aggregates findings from GuardDuty, Inspector, Macie, Config, a
 - **Note** — free-text annotation explaining your disposition
 - **User-defined fields** — custom key-value pairs for organizational tracking
 
-**HubAccelerator Prepare (`csvPrepare.py`)** packages the Lambda deployment artifact and uploads it to S3.
-
 ## Architecture
 
-```
-[EventBridge Schedule] → [Lambda: csvExporter] → [S3: findings.csv]
-                                                        ↓
-                                                  [Download CSV]
-                                                        ↓
-                                                  [Edit in Excel]
-                                                        ↓
-                                                  [Upload CSV]
-                                                        ↓
-                              [CLI: csvUpdater] → [Security Hub BatchUpdateFindings]
-```
+### Scheduled Export
+![Scheduled Export](docs/diagrams/scheduled-export.svg)
+
+EventBridge triggers the export Lambda on a cron schedule. Findings are downloaded from Security Hub across all configured regions (in parallel) and uploaded as a CSV to S3.
+
+### CLI Export
+![CLI Export](docs/diagrams/cli-export.svg)
+
+Run `hubaccelerator-export` from any workstation with AWS credentials. Optionally retain a local copy for immediate editing.
+
+### Bulk Update
+![Bulk Update](docs/diagrams/bulk-update.svg)
+
+Edit the exported CSV (in Excel, a text editor, or programmatically), then run `hubaccelerator-update` to push changes back to Security Hub in batches of 100 findings per API call.
 
 ### Local File Support
 
@@ -130,16 +131,14 @@ hubaccelerator.rescor.net/
 │   ├── __init__.py
 │   ├── exporter.py             — Export findings to CSV (CLI + Lambda)
 │   ├── updater.py              — Bulk update findings from CSV (CLI + Lambda)
-│   ├── prepare.py              — Package Lambda deployment artifact
 │   └── objects.py              — Shared AWS service abstractions
 ├── cdk/
 │   ├── hubaccelerator-stack.js — CDK infrastructure (S3, Lambda, IAM, SSM)
 │   └── cdk-app.js
 ├── cfn/                        — Legacy CloudFormation (reference only)
 ├── docs/
-│   ├── HubAccelerator-UserGuide.docx
-│   ├── HubAccelerator-Overview.pptx
-│   └── HubAccelerator-README-legacy.pdf
+│   ├── diagrams/               — D2 source + rendered SVG
+│   └── legacy/                 — Original docx/pptx/pdf (reference)
 └── archive/                    — Applied patches (historical)
 ```
 
@@ -154,8 +153,30 @@ HubAccelerator reads configuration from AWS Systems Manager Parameter Store unde
 | `/csvManager/folder/findings` | S3 prefix for exported CSV files |
 
 Environment variables override SSM parameters:
-- `CSV_SECURITYHUB_REGIONLIST` — region list override
-- `CSV_SECURITYHUB_BUCKET` — bucket override
+- `HUBACCELERATOR_REGIONLIST` — region list override
+- `HUBACCELERATOR_BUCKET` — bucket override
+- `HUBACCELERATOR_REGION` — primary region (also used as CLI default)
+
+Legacy names (`CSV_SECURITYHUB_REGIONLIST`, `CSV_PRIMARY_REGION`, `CSV_SECURITYHUB_BUCKET`) are still accepted with a deprecation warning.
+
+## Updatable Columns
+
+The following CSV columns can be modified and pushed back to Security Hub via `hubaccelerator-update`. Other columns are read-only (changes are silently ignored).
+
+| Column | Description | Valid Values |
+|--------|-------------|-------------|
+| Confidence | Your confidence in the finding | Integer 0–100 |
+| Criticality | Business criticality of affected resource | Integer 0–100 |
+| NoteText | Annotation explaining your disposition | Free text |
+| CustomerOwner | Owner (email, username, etc.) | Free text |
+| CustomerIssue | Issue tracker ID (e.g., JIRA DSP-789) | Free text |
+| CustomerTicket | Ticket number (e.g., ServiceNow) | Free text |
+| ProductSeverity | Override the scanner's native severity | Float |
+| SeverityLabel | Severity category | INFORMATIONAL, LOW, MEDIUM, HIGH, CRITICAL |
+| VerificationState | Finding accuracy assessment | UNKNOWN, TRUE_POSITIVE, FALSE_POSITIVE, BENIGN_POSITIVE |
+| Workflow | Triage status | NEW, NOTIFIED, SUPPRESSED, RESOLVED |
+
+The CSV also includes 25+ read-only columns (Title, Description, Resources, ComplianceStatus, etc.) for analysis and filtering.
 
 ## Relationship to AWS Security Hub Native Features
 
