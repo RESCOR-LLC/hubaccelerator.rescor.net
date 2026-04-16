@@ -83,43 +83,64 @@ cdk deploy --context exportSchedule="cron(0 6 ? * MON-FRI *)" \
 
 Legacy CloudFormation templates are retained in `cfn/` for reference.
 
+### Install
+
+```bash
+pip install .
+# Or for development:
+pip install -e .
+```
+
+This installs two commands available from any directory:
+- `hubaccelerator-export` — export Security Hub findings to CSV
+- `hubaccelerator-update` — bulk update findings from a modified CSV
+
 ### CLI Usage
 
 ```bash
-# Export findings
-python3 src/csvExporter.py \
+# Export findings (bucket and region default from SSM/env if configured)
+hubaccelerator-export --primary-region us-east-1
+
+# Export with explicit options
+hubaccelerator-export \
   --role-arn arn:aws:iam::ACCOUNT:role/HubAcceleratorRole \
   --primary-region us-east-1 \
   --bucket your-findings-bucket \
-  --filters HighActive
+  --filters HighActive \
+  --retain-local
 
 # Update findings from modified CSV
-python3 src/csvUpdater.py \
-  --role-arn arn:aws:iam::ACCOUNT:role/HubAcceleratorRole \
+hubaccelerator-update \
   --primary-region us-east-1 \
   --input s3://your-findings-bucket/Findings/latest.csv
+
+# Update from a local file
+hubaccelerator-update \
+  --primary-region us-east-1 \
+  --input /path/to/modified-findings.csv
 ```
 
 ## Project Structure
 
 ```
 hubaccelerator.rescor.net/
+├── pyproject.toml              — pip install configuration
 ├── README.md
-├── src/
-│   ├── csvExporter.py      — Export findings to CSV (CLI + Lambda)
-│   ├── csvUpdater.py       — Bulk update findings from CSV (CLI + Lambda)
-│   ├── csvPrepare.py       — Package Lambda deployment artifact
-│   └── csvObjects.py       — Shared AWS service abstractions
-├── cfn/
-│   ├── CsvDatastore.yaml   — S3 bucket + lifecycle policies
-│   ├── CsvExporter.yaml    — Export Lambda + EventBridge + SSM
-│   └── CsvUpdater.yaml     — Update Lambda + SSM
+├── src/hubaccelerator/
+│   ├── __init__.py
+│   ├── exporter.py             — Export findings to CSV (CLI + Lambda)
+│   ├── updater.py              — Bulk update findings from CSV (CLI + Lambda)
+│   ├── prepare.py              — Package Lambda deployment artifact
+│   └── objects.py              — Shared AWS service abstractions
+├── cdk/
+│   ├── hubaccelerator-stack.js — CDK infrastructure (S3, Lambda, IAM, SSM)
+│   └── cdk-app.js
+├── cfn/                        — Legacy CloudFormation (reference only)
 ├── docs/
 │   ├── HubAccelerator-UserGuide.docx
 │   ├── HubAccelerator-Overview.pptx
 │   └── HubAccelerator-README-legacy.pdf
-├── archive/                — Applied patches (historical)
-└── scripts/                — Utility scripts
+└── archive/                    — Applied patches (historical)
 ```
 
 ## Configuration

@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=68.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hubaccelerator"
+version = "2.0.0"
+description = "The Security Hub Backlog Accelerator — export and bulk-update AWS Security Hub findings via CSV"
+readme = "README.md"
+license = {text = "AGPL-3.0"}
+requires-python = ">=3.9"
+authors = [
+    {name = "Andrew T. Robinson", email = "office@rescor.net"},
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: System Administrators",
+    "Topic :: Security",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "boto3>=1.26.0",
+]
+
+[project.scripts]
+hubaccelerator-export = "hubaccelerator.exporter:main"
+hubaccelerator-update = "hubaccelerator.updater:main"
+
+[project.urls]
+Homepage = "https://www.rescor.net"
+Repository = "https://github.com/RESCOR-LLC/hubaccelerator.rescor.net"
+
+[tool.setuptools.packages.find]
+where = ["src"]

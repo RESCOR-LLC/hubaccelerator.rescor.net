@@ -15,7 +15,7 @@ import sys
 import os
 import re
 import logging
-import csvObjects as csvo
+from hubaccelerator import objects as csvo
 import traceback
 
 _DEFAULT_LOGGING_LEVEL = logging.INFO
@@ -257,40 +257,35 @@ def lambdaHandler ( event = None, context = None ):
 ################################################################################
 #
 ################################################################################
-if __name__ == "__main__":
-    """
-    This section is executed when csvUpdater.py is invoked as a command-line command.
-    (need to make regions and other parameters configurable)
-    """
+def main():
+    """CLI entry point for hubaccelerator-update."""
     try:
-        parser = argparse.ArgumentParser()
-        parser.add_argument("--role-arn", dest="roleArn", required=False, 
-            help="The assumable role ARN to access SecurityHub")
-        parser.add_argument("--input", required=True, 
-            help="S3 or file system file that holds findings to update")
+        parser = argparse.ArgumentParser(
+            prog='hubaccelerator-update',
+            description='Bulk update AWS Security Hub findings from a CSV file. '
+                'Defaults read from SSM Parameter Store (/csvManager/*).')
+        parser.add_argument("--role-arn", dest="roleArn", required=False,
+            help="Assumable role ARN (default: use environment credentials)")
+        parser.add_argument("--input", required=True,
+            help="S3 URL (s3://bucket/key) or local file path")
         parser.add_argument("--debug", action="store_true", default=False,
-            help="Provide more debugging details")
-        parser.add_argument("--primary-region", dest="region", required=True,
-            help="Primary region for operations")
+            help="Verbose debug output")
+        parser.add_argument("--primary-region", dest="region",
+            default=csvo.env("HUBACCELERATOR_REGION"),
+            help="Primary AWS region (default: from HUBACCELERATOR_REGION env)")
 
         arguments = parser.parse_args()
 
-        # Do the work
         executor(
-            role=arguments.roleArn, 
+            role=arguments.roleArn,
             input=arguments.input,
-            region=arguments.region , 
-            debug=arguments.debug 
+            region=arguments.region,
+            debug=arguments.debug
         )
 
-    # Catch trouble
     except Exception as thrown:
-        message = f"command invocation raised ({type(thrown).__name__}): {thrown}"
+        _LOGGER.exception(f"unexpected error: {thrown}")
+        sys.exit(1)
 
-        # This will generate a traceback
-        if arguments.debug:
-            _LOGGER.exception(f"494120i {message}")
-
-        # This will not generate a traceback
-        else:
-            _LOGGER.critical(f"494130i {message}")
+if __name__ == "__main__":
+    main()

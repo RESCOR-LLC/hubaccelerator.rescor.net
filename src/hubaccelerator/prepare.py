@@ -18,7 +18,7 @@ import os
 import re
 import time
 import logging
-import csvObjects as csvo
+from hubaccelerator import objects as csvo
 
 _DEFAULT_LOGGING_LEVEL = logging.INFO
 """ Default logging level """

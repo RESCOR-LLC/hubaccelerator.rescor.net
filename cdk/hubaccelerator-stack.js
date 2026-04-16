@@ -155,7 +155,7 @@ class HubAcceleratorStack extends Stack {
     const exporterFn = new lambda.Function(this, 'Exporter', {
       functionName: 'HubAccelerator-Exporter',
       runtime: lambda.Runtime.PYTHON_3_12,
-      handler: 'csvExporter.lambdaHandler',
+      handler: 'hubaccelerator.exporter.lambdaHandler',
       code: lambda.Code.fromAsset('../src'),
       role,
       timeout: Duration.minutes(15),
@@ -169,7 +169,7 @@ class HubAcceleratorStack extends Stack {
     const updaterFn = new lambda.Function(this, 'Updater', {
       functionName: 'HubAccelerator-Updater',
       runtime: lambda.Runtime.PYTHON_3_12,
-      handler: 'csvUpdater.lambdaHandler',
+      handler: 'hubaccelerator.updater.lambdaHandler',
       code: lambda.Code.fromAsset('../src'),
       role,
       timeout: Duration.minutes(15),

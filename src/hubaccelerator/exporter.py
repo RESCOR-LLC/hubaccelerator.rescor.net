@@ -19,7 +19,7 @@ import argparse
 import csv
 import sys
 import os
-import csvObjects as csvo
+from hubaccelerator import objects as csvo
 import logging
 import traceback
 import re
@@ -239,35 +239,41 @@ def lambdaHandler ( event = None, context = None ):
 ################################################################################
 #### Main body is invoked if this is a command invocation
 ################################################################################
-if __name__ == "__main__":
-    """
-    Need to make regions etc. configurable
-    """
+def main():
+    """CLI entry point for hubaccelerator-export."""
     try:
-        parser = argparse.ArgumentParser()
+        parser = argparse.ArgumentParser(
+            prog='hubaccelerator-export',
+            description='Export AWS Security Hub findings to CSV. '
+                'Defaults read from SSM Parameter Store (/csvManager/*).')
         parser.add_argument("--role-arn", required=False, dest="roleArn",
-            help="The assumable role ARN to access SecurityHub")
-        parser.add_argument("--filters", default='{}', required=False, 
-            help="Filters to apply to findings")
-        parser.add_argument("--bucket", required=False, 
-            help="S3 bucket to store findings")
+            help="Assumable role ARN (default: use environment credentials)")
+        parser.add_argument("--filters", default='HighActive', required=False,
+            help="Canned filter name or JSON filter object (default: HighActive)")
+        parser.add_argument("--bucket", required=False,
+            help="S3 bucket (default: from SSM /csvManager/bucket)")
         parser.add_argument("--limit", required=False, type=int, default=0,
-            help="Limit number of findings retrieved")
-        parser.add_argument("--retain-local", action="store_true", 
-            dest="retainLocal", default=False, help="Retain local file")
-        parser.add_argument("--primary-region", dest="region", required=True,
-            help="Primary region for operations")
+            help="Max findings to retrieve (default: unlimited)")
+        parser.add_argument("--retain-local", action="store_true",
+            dest="retainLocal", default=False, help="Keep local CSV copy")
+        parser.add_argument("--primary-region", dest="region",
+            default=csvo.env("HUBACCELERATOR_REGION"),
+            help="Primary AWS region (default: from HUBACCELERATOR_REGION env)")
 
         arguments = parser.parse_args()
 
         executor(
-            role=arguments.roleArn, 
+            role=arguments.roleArn,
             filters=getFilters(arguments.filters),
-            bucket=arguments.bucket, 
-            limit=arguments.limit, 
+            bucket=arguments.bucket,
+            limit=arguments.limit,
             retain=arguments.retainLocal,
             region=arguments.region
         )
 
     except Exception as thrown:
-        _LOGGER.exception(f"493170t unexpected command invocation error {thrown}")
+        _LOGGER.exception(f"unexpected error: {thrown}")
+        sys.exit(1)
+
+if __name__ == "__main__":
+    main()
