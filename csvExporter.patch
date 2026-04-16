@@ -1,0 +1,78 @@
+diff --git a/HubAccelerator/csvExporter.py b/HubAccelerator/csvExporter.py
+index b121960..c583452 100755
+--- a/HubAccelerator/csvExporter.py
++++ b/HubAccelerator/csvExporter.py
+@@ -1,4 +1,4 @@
+-#!/usr/local/bin/python3
++#!/opt/homebrew/bin/python3
+ """
+ Convert SecurityHub findings to CSV and store in an S3 bucket
+ 
+@@ -44,20 +44,34 @@ _LOGGER.setLevel(_DEFAULT_LOGGING_LEVEL)
+ ################################################################################
+ #### 
+ ################################################################################
+-def choose (default=None, *choices):
++def choose (choices={}):
+     """
+     Choose between an option and an environment variable (the option always
+     has priority, if specified)
+     """
+-    answer = default
++    for name, value in choices.items():
++        _LOGGER.info(f'csvExport.493010i choice {name}: {value}')
+ 
+-    for choice in choices:
+-        _LOGGER.debug(f'csvExport.493010i choice {choice}')
+-
+-        if choice:
+-            answer = choice
++        if value:
++            _LOGGER.info(f'csvExport.493012 using choice {name}')
++            answer = value
+             break
+ 
++    if not isinstance(answer, list):
++        candidate = answer
++
++        try:
++            answer = json.loads(candidate)
++        except Exception as thrown:
++            try:
++                answer = re.sub('\s*[\[\]\s]\s*', '', candidate).split(',')
++            except Exception as thrown:
++                _LOGGER.error(f'493013e cannot parse {candidate} at all: {thrown}')
++                raise thrown
++
++        _LOGGER.info(f'493016i candidate {candidate} ({type(candidate).__name__}) ' +
++            f'to {answer} ({type(answer).__name__})')
++
+     return answer
+ ################################################################################
+ #### 
+@@ -106,11 +120,11 @@ def executor (role=None, region=None, filters=None, bucket=None, limit=0,
+     ssmActor = csvo.SsmActor(role=role, region=region)
+ 
+     # Get a list of Security Hub regions we wish to act on
+-    regions = choose(
+-        os.environ.get("CSV_SECURITYHUB_REGIONLIST"),
+-        re.compile("\s*,\s*").split(getattr(ssmActor, "/csvManager/regionList", region)),
+-        ssmActor.getSupportedRegions(service="securityhub")
+-    )
++    regions = choose({
++        'Environment variable CSV_SECURITYHUB_REGIONLIST': os.environ.get("CSV_SECURITYHUB_REGIONLIST"),
++        'SSM region list /csvManager/regionList': re.compile("\s*,\s*").split(getattr(ssmActor, "/csvManager/regionList", region)),
++        'ssm:getSupportedRegions API': ssmActor.getSupportedRegions(service="securityhub")
++    })
+     
+     _LOGGER.info("493040i selected SecurityHub regions %s" % regions)
+ 
+@@ -141,7 +155,7 @@ def executor (role=None, region=None, filters=None, bucket=None, limit=0,
+     hubActor.downloadFindings(filters=filters,limit=limit)
+ 
+     if hubActor.count <= 0:
+-        _LOGGER.war("493060w no findings downloaded")
++        _LOGGER.warning("493060w no findings downloaded")
+     else:
+         _LOGGER.info(f'493070i preparing to write {hubActor.count} findings')
+ 

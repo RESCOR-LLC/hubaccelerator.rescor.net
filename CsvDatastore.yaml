@@ -1,0 +1,198 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Create a bucket to receive Security Hub findings
+Parameters: 
+  CodeFolder:
+    Type: String
+    Description: "Folder that will contain Lambda code & CloudFormation templates"
+    Default: "Code"
+  FindingsFolder:
+    Type: String
+    Description: "Folder that will contain exported Security Hub findings"
+    Default: "Findings"
+  AccessPrincipals:
+    Type: CommaDelimitedList
+    Description: "A comma-separated list of AWS principals to be granted access to the new bucket"
+    Default: ""
+  ExpirationPeriod:
+    Type: Number
+    Description: "Maximum days to retain exported findings"
+    Default: 365
+  GlacierTransitionPeriod:
+    Type: Number
+    Description: "Maximum days before exported findings are moved to AWS Glacier"
+    Default: 31
+  Partition:
+    Type: String
+    Description: "The partition in which CSV Manager for Security Hub will operate"
+    Default: ""
+  Regions:
+    Type: String
+    Description: "The comma-delimeted list of regions in which CSV Manager for Security Hub will operate"
+    Default: ""
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: "CSV Manager for Security Hub Findings Datastore Details"
+        Parameters:
+        - CodeFolder
+        - FindingsFolder
+      - Label:
+          default: "CSV Manager for Security Hub Operating Environment"
+        Parameters:
+        - Partition
+        - Region
+        - ParameterPrefix
+      - Label:
+          default: "Data Retention & Other Policy Details"
+        Parameters:
+        - AccessPrincipals 
+        - GlacierTransitionPeriod
+        - ExpirationPeriod      
+    ParameterLabels:
+        CodeFolder:
+          default: "What folder for CSV Manager for Security Hub code?"
+        FindingsFolder:
+          default: "What folder for CSV Manager for Security Hub exports?"
+        AccessPrincipals:
+          default: "Who can access this bucket?"
+        GlacierTransitionPeriod:
+          default: "How long before moving exports to Glacier?"
+        ExpirationPeriod:
+          default: "How long before deleting old exports?"
+        Partition:
+          default: "In what partition will CSV Manager for Security Hub operate?"
+        Regions:
+          default: "In what comma-separated list of regions will CSV Manager for Security Hub operate?"
+Resources:  
+  Bucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    Properties:
+      ObjectLockEnabled: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - ServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+      AccessControl: BucketOwnerFullControl
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      LifecycleConfiguration:
+        Rules:
+        - Id: "MoveToGlacier"
+          NoncurrentVersionTransitions:
+          - StorageClass: GLACIER
+            TransitionInDays: !Ref GlacierTransitionPeriod
+          ExpirationInDays: !Ref ExpirationPeriod
+          Status: "Enabled"
+          Transition:
+            StorageClass: GLACIER
+            TransitionInDays: !Ref GlacierTransitionPeriod
+  BucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties: 
+      Bucket: !Ref Bucket
+      PolicyDocument: 
+        Statement:
+        - Effect: Allow
+          Principal:
+            AWS: 
+              !Ref AccessPrincipals
+          Action:
+          - s3:PutObject*
+          - s3:ListBucket
+          - s3:GetObject*
+          Resource:
+          - !Sub "arn:${AWS::Partition}:s3:::${Bucket}"
+          - !Sub "arn:${AWS::Partition}:s3:::${Bucket}/*"
+  BucketNameParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Description: The S3 bucket where Security Hub are exported
+      Name: !Sub "/csvManager/bucket"
+      Type: String
+      Value: !Ref Bucket
+  CodeFolderParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Description: The folder where CSV Manager for Security Hub code is stored
+      Name: !Sub "/csvManager/folder/code"
+      Type: String
+      Value: !Ref CodeFolder
+  FindingsFolderParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Description: The folder where CSV Manager for Security Hub findings are exported
+      Name: !Sub "/csvManager/folder/findings"
+      Type: String
+      Value: !Ref FindingsFolder
+  ArchiveKeyParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Description: The name of the ZIP archive containing CSV Manager for Security Hub Lambda code
+      Name: !Sub "/csvManager/object/codeArchive"
+      Type: String
+      Value: "Not Initialized"
+  PartitionParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/csvManager/partition"
+      Description: The partition in which CSV Manager for Security Hub will operate
+      Type: String
+      Value: !Ref Partition
+  RegionParameter:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/csvManager/regionList"
+      Description: The list of regions in which CSV Manager for Security Hub will operate
+      Type: StringList
+      Value: !Ref Regions
+Outputs:
+  BucketArn:
+    Description: ARN of the bucket we wish to use
+    Value: !GetAtt Bucket.Arn
+    Export:
+      Name: "CsvManager::BucketArn"
+  BucketName:
+    Description: The bucket name created by this stack
+    Value: !Ref Bucket
+    Export:
+      Name: "CsvManager::BucketName"
+  CodeFolderParameterName:
+    Description: The name of the CodeFolder SSM parameter
+    Value: !Ref CodeFolderParameter
+    Export:
+      Name: "CsvManager::CodeFolderParameterName"
+  FindingsFolderParameterName:
+    Description: The name of the CodeFolder SSM parameter
+    Value: !Ref CodeFolderParameter
+    Export:
+      Name: "CsvManager::FindingFolderParameterName"
+  ArchiveKeyParameterName:
+    Description: The code ZIP file object key
+    Value: !Ref ArchiveKeyParameter
+    Export:
+      Name: "CsvManager::ArchiveKeyParameterName"
+  PartitionParameterName:
+    Description: The name of the partition SSM parameter
+    Value: !Ref PartitionParameter
+    Export:
+      Name: "CsvManager::PartitionParameterName"
+  RegionParameterName:
+    Description: The name of the allowed regions SSM parameter
+    Value: !Ref RegionParameter
+    Export:
+      Name: "CsvManager::RegionParameterName"
+  PartitionName:
+    Description: "The partition name"
+    Value: !Ref Partition
+    Export:
+      Name: "CsvManager::Partition"
+  RegionList:
+    Description: "The list of supported regions"
+    Value: !Ref Regions
+    Export:
+      Name: "CsvManager::Regions"
