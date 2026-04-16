@@ -771,39 +771,30 @@ class Actor:
         """
         self.role = role
         self.authorized = False
-        self.accessKeyId = None
-        self.accessKey = None
-        self.sessionToken = None
+        self.session = None  # boto3.Session — shared across all clients
         self.client = {}
         self.principal = None
         self.service = service
 
-        _LOGGER.debug(f'496135d {service} {region} {type(region)} {role}')
+        _LOGGER.debug(f'{service} init: region={region} type={type(region)} role={role}')
 
-        # Some things depend on whether we were passed a region or a list 
+        # Some things depend on whether we were passed a region or a list
         if isinstance(region, list):
             self.regions = region
             self.mode = Actor._REGION_MODE_MULTIPLE
-
-            _LOGGER.debug(f'496140d service {service} set to _REGION_MODE_MULTIPLE')
-
         elif isinstance(region, str):
             self.regions = [ region ]
             self.mode = Actor._REGION_MODE_SINGLE
-
-            _LOGGER.debug(f'496145d service {service} set to _REGION_MODE_SINGLE')
-
         else:
-            raise ActorException(f"496150t region must be a region name or list of regions [{region}]")
+            raise ActorException(f"region must be a region name or list of regions [{region}]")
 
-        # Get authorization
+        # Establish a boto3 Session (assumes role if needed, reuses credentials)
         self.authorize(regions=self.regions)
 
-        # Create a client for the specified regions
-        for region in self.regions:
-            _LOGGER.debug(f"496160d create {self.service} client in region {region}")
-
-            self.client[region] = self.getClient(region)
+        # Create a client for each region from the shared session
+        for r in self.regions:
+            _LOGGER.debug(f"creating {self.service} client in region {r}")
+            self.client[r] = self.session.client(self.service, region_name=r)
     #---------------------------------------------------------------------------
     def getPartition(self, region:str) -> str:
         """
@@ -841,22 +832,13 @@ class Actor:
     #---------------------------------------------------------------------------
     def getClient (self, region:str) -> object:
         """
-        Create an AWS API client associated with a specific region
+        Create an AWS API client from the shared session for a specific region.
         """
         try:
-            client = boto3.client(
-                self.service,
-                aws_access_key_id=self.accessKeyId, 
-                aws_secret_access_key=self.accessKey, 
-                aws_session_token=self.sessionToken ,
-                region_name=region             
-           )
-
+            client = self.session.client(self.service, region_name=region)
         except Exception as thrown:
-            _LOGGER.critical(f'496190s error obtaining client for {self.service} ' + 
-                f'in {region}: {thrown}') 
+            _LOGGER.critical(f'error obtaining client for {self.service} in {region}: {thrown}')
             client = None
-
         return client
     #---------------------------------------------------------------------------
     @property
@@ -875,60 +857,49 @@ class Actor:
     #---------------------------------------------------------------------------
     def authorize (self, regions=None):
         """
-        If no role is supplied to the actor, the authorization is implicit
-        through the credentials already in the environment. Otherwise, use
-        sts:assume_role to gain the privileges associated with the supplied
-        role ARN.
+        Create a boto3.Session with appropriate credentials.
+        If no role is supplied, uses environment credentials.
+        If a role ARN is provided, assumes the role via STS and creates
+        a session with the temporary credentials.
         """
-        _LOGGER.debug(f'496203d regions {regions} {type(regions)} {regions[0]}')
         region = regions[0] if isinstance(regions, list) \
-            else regions if isinstance(regions, str) else None;
+            else regions if isinstance(regions, str) else None
 
-        _LOGGER.debug(f'496200d request to authorize {self.service}' + \
-            f' client region {region}')
+        _LOGGER.debug(f'authorize: {self.service} region={region}')
 
-        # Obtain an STS client
         try:
-            # Obtain an STS client
-            client = boto3.client("sts", region_name=region)
-            _LOGGER.debug(f"496210d obtained STS client {client}")
-
-            # No role supplied - use environment credentials
             if not self.role:
+                # No role — use environment credentials
+                self.session = boto3.Session(region_name=region)
                 self.authorized = True
-                _LOGGER.debug("496220d authorized from environment")
-
-            # Role supplied, try to assume the role
+                _LOGGER.debug("authorized from environment credentials")
             else:
-                _LOGGER.debug(f"496230d attempt to assume role {self.role}")
-
-                answer = client.assume_role(
-                    RoleArn=self.role, 
+                # Assume role, then create session with temporary credentials
+                _LOGGER.debug(f'assuming role {self.role}')
+                sts = boto3.client("sts", region_name=region)
+                creds = sts.assume_role(
+                    RoleArn=self.role,
                     RoleSessionName=f"{self.service}-access"
+                )["Credentials"]
+
+                self.session = boto3.Session(
+                    aws_access_key_id=creds["AccessKeyId"],
+                    aws_secret_access_key=creds["SecretAccessKey"],
+                    aws_session_token=creds["SessionToken"],
+                    region_name=region,
                 )
-
-                self.accessKeyId = answer["Credentials"]["AccessKeyId"]
-                self.accessKey = answer["Credentials"]["SecretAccessKey"]
-                self.sessionToken = answer["Credentials"]["SessionToken"]
                 self.authorized = True
+                _LOGGER.info(f'assumed role {self.role} for service {self.service}')
 
-                _LOGGER.info(f"496240i assumed role {self.role} for service {self.service}")
+            # Record the caller identity
+            self.principal = self.session.client("sts").get_caller_identity()
 
-            # Now get the principal name of the authorized identity
-            self.principal = client.get_caller_identity()
-        
-        # Catch client errors
         except ClientError as thrown:
-            _LOGGER.critical(f'496250d threw {error_code(thrown)}: {thrown}')
+            _LOGGER.critical(f'authorization failed: {error_code(thrown)}: {thrown}')
             self.authorized = False
 
-        # If we got this far, we're authorized
-        else:
-            self.authorized = True
-
-        # Complain if we aren't authorized
         if not self.authorized:
-            raise ActorException('496260t authorization failed')
+            raise ActorException('authorization failed')
 
         return self
 ################################################################################
