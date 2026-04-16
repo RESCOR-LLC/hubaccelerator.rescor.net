@@ -25,13 +25,25 @@ import json
 _CURRENT_VERSION = "2022-02-11"
 
 _DEFAULT_LOGGING_LEVEL = logging.INFO
-""" Default logging level """
 
-# Set up logging
-logging.basicConfig(level=_DEFAULT_LOGGING_LEVEL)
+# Structured JSON logging for CloudWatch Logs Insights compatibility.
+# Format: {"timestamp": "...", "level": "...", "module": "...", "message": "..."}
+class _JsonFormatter(logging.Formatter):
+    def format(self, record):
+        return json.dumps({
+            "timestamp": self.formatTime(record),
+            "level": record.levelname,
+            "module": record.module,
+            "function": record.funcName,
+            "message": record.getMessage(),
+        })
 
-# Retrieve the logging instance
-_LOGGER = logging.getLogger()
+# Configure root logger with JSON output (Lambda sends stdout to CloudWatch)
+_handler = logging.StreamHandler()
+_handler.setFormatter(_JsonFormatter())
+logging.basicConfig(level=_DEFAULT_LOGGING_LEVEL, handlers=[_handler])
+
+_LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(_DEFAULT_LOGGING_LEVEL)
 
 # ---------------------------------------------------------------------------
