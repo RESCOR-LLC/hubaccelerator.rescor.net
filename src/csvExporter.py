@@ -14,6 +14,7 @@ python3 csvExporter.py
 """
 
 import json
+import io
 import argparse
 import csv
 import sys
@@ -109,9 +110,6 @@ def executor (role=None, region=None, filters=None, bucket=None, limit=0,
         role=role
     )
 
-    # Filename where file can be stored locally
-    localFile = s3Actor.filePath()
-
     # Now obtain a client for SecurityHub regions
     hubActor = csvo.HubActor(
         role=role,
@@ -122,46 +120,45 @@ def executor (role=None, region=None, filters=None, bucket=None, limit=0,
     hubActor.downloadFindings(filters=filters,limit=limit)
 
     if hubActor.count <= 0:
-        _LOGGER.warning("493060w no findings downloaded")
+        _LOGGER.warning("no findings downloaded")
     else:
-        _LOGGER.info(f'493070i preparing to write {hubActor.count} findings')
+        _LOGGER.info(f'preparing to write {hubActor.count} findings')
 
+        # Build CSV in memory (avoids /tmp security concerns in Lambda)
+        csvBuffer = io.StringIO()
         first = True
 
-        with open(localFile, 'w') as target:
-            for finding in hubActor.getFinding():
-                findingObject = csvo.Finding(finding, actor=hubActor)
+        for finding in hubActor.getFinding():
+            findingObject = csvo.Finding(finding, actor=hubActor)
 
-                # Start the CSV file with a header
-                if first:
-                    _LOGGER.debug(f"493080d finding object {findingObject} keys {findingObject.columns}")
-
-                    writer = csv.DictWriter(target, 
-                        fieldnames=findingObject.columns)
-
-                    writer.writeheader()
-
-                # Write the finding
-                writer.writerow(findingObject.rowMap)
-
+            if first:
+                writer = csv.DictWriter(csvBuffer,
+                    fieldnames=findingObject.columns)
+                writer.writeheader()
                 first = False
 
-        # Announce completion of write
-        _LOGGER.info(f"493090i findings written to {localFile}")
+            writer.writerow(findingObject.rowMap)
 
-        # Place the object in the S3 bucket
-        s3Actor.put()
+        csvContent = csvBuffer.getvalue()
+        csvBuffer.close()
 
-        _LOGGER.info('493100i uploaded to ' + 
-            f's3://{s3Actor.bucket}/{s3Actor.objectKey}')
+        _LOGGER.info(f'findings serialized ({len(csvContent)} bytes)')
 
-        # Determine whether to retain the local file or not
+        # Upload directly to S3 from memory
+        s3Actor.primaryClient.put_object(
+            Bucket=s3Actor.bucket,
+            Key=s3Actor.objectKey,
+            Body=csvContent.encode('utf-8'),
+        )
+
+        _LOGGER.info(f'uploaded to s3://{s3Actor.bucket}/{s3Actor.objectKey}')
+
+        # Optionally write a local copy
         if retain:
-            _LOGGER.warning(f"493110w local file {localFile} retained")
-        else:
-            os.unlink(localFile)
-
-            _LOGGER.info("493120i local file deleted")
+            localFile = s3Actor.filePath()
+            with open(localFile, 'w') as f:
+                f.write(csvContent)
+            _LOGGER.info(f'local copy retained: {localFile}')
 
         # Return details to caller
         answer = {
