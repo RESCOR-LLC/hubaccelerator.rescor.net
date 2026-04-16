@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/python3
+#!/usr/bin/env python3
 """
 Update Security Hub findings en bloc/en masse from a CSV file
 
@@ -10,16 +10,13 @@ REVISION 20210930 Actually make work in GovCloud
 
 import argparse
 import csv
+import json
 import sys
 import os
 import re
 import logging
 import csvObjects as csvo
 import traceback
-import re
-
-# Retrieves the name of the current function (for logging purposes)
-this = lambda frame=0 : sys._getframe(frame+1).f_code.co_name
 
 _DEFAULT_LOGGING_LEVEL = logging.INFO
 """ Default logging level """
@@ -60,38 +57,6 @@ class InputDiscriminator:
             self.key = None
             self.path = input
 ################################################################################
-#### 
-################################################################################
-def choose (choices={}):
-    """
-    Choose between an option and an environment variable (the option always
-    has priority, if specified)
-    """
-    for name, value in choices.items():
-        _LOGGER.info(f'csvUpdate.494010i choice {name}: {value}')
-
-        if value:
-            _LOGGER.info(f'csvUpdate.494012 using choice {name}')
-            answer = value
-            break
-
-    if not isinstance(answer, list):
-        candidate = answer
-
-        try:
-            answer = json.loads(candidate)
-        except Exception as thrown:
-            try:
-                answer = re.sub('\s*[\[\]\s]\s*', '', candidate).split(',')
-            except Exception as thrown:
-                _LOGGER.error(f'494013e cannot parse {candidate} at all: {thrown}')
-                raise thrown
-
-        _LOGGER.info(f'494016i candidate {candidate} ({type(candidate).__name__}) ' +
-            f'to {answer} ({type(answer).__name__})')
-
-    return answer
-################################################################################
 #### Invocation-independent process handler
 ################################################################################
 def executor (role=None, region=None, debug=False, input=None):
@@ -107,13 +72,13 @@ def executor (role=None, region=None, debug=False, input=None):
     ssmActor = csvo.SsmActor(role=role, region=region)
 
     # Get a list of Security Hub regions we wish to act on
-    regions = choose({
+    regions = csvo.choose({
         'Environment variable CSV_SECURITYHUB_REGIONLIST': os.environ.get("CSV_SECURITYHUB_REGIONLIST"),
         'SSM region list /csvManager/regionList': re.compile("\s*,\s*").split(getattr(ssmActor, "/csvManager/regionList", region)),
         'ssm:getSupportedRegions API': ssmActor.getSupportedRegions(service="securityhub")
     })
-    
-    _LOGGER.info("494010i selected SecurityHub regions %s" % regions)
+
+    _LOGGER.info(f"494010i selected SecurityHub regions {regions}")
 
     # Determine if input is S3 or local file
     source = InputDiscriminator(input)
@@ -146,7 +111,7 @@ def executor (role=None, region=None, debug=False, input=None):
         count = 0
 
         # Report start of export
-        _LOGGER.info("494020i processing %d records from CSV" % len(raw))
+        _LOGGER.info(f"494020i processing {len(raw)} records from CSV")
         
         for rowNumber, row in enumerate(reader):
             # Skip the column header row
@@ -160,8 +125,7 @@ def executor (role=None, region=None, debug=False, input=None):
             # If there is a problem with the finding, just skip it--user
             # can re-run later after corrections
             except csvo.FindingValueError as thrown:
-                _LOGGER.error("494030e row %d error: %s" \
-                    % (rowNumber + 1, str(thrown)))
+                _LOGGER.error(f"494030e row {rowNumber + 1} error: {thrown}")
 
                 continue
 
@@ -171,11 +135,10 @@ def executor (role=None, region=None, debug=False, input=None):
 
             # Report progress
             if (count % 1000) == 0:
-                _LOGGER.info("494040i ... %8d findings processed" % count)
+                _LOGGER.info(f"494040i ... {count:8d} findings processed")
 
         # Report the results of the preprocessing
-        _LOGGER.info("494050i processed %d findings and identified %d update sets" \
-            % (count, updates.sets)) 
+        _LOGGER.info(f"494050i processed {count} findings and identified {updates.sets} update sets") 
 
         # Now apply the updates
         if (updates.sets > 0):
@@ -195,8 +158,7 @@ def executor (role=None, region=None, debug=False, input=None):
 
             # Report the results of the update
             _LOGGER.info(
-                "494070i %d findings processed, %d findings not processed" \
-                % (len(processed), len(unprocessed))
+                f"494070i {len(processed)} findings processed, {len(unprocessed)} findings not processed"
             )
 
             # If some findings were not processed, report those findings
@@ -210,17 +172,16 @@ def executor (role=None, region=None, debug=False, input=None):
                     code = failed.get("ErrorCode")
                     message = failed.get("ErrorMessage")
 
-                    _LOGGER.error("494090e %s\n\t%s - %s" \
-                        % (finding, code, message))
+                    _LOGGER.error(f"494090e {finding}\n\t{code} - {message}")
     
     # Handle any errors that arise
     except Exception as thrown:
-        message = "(s) Unexpected executor error %s" % str(thrown)
+        message = f"(s) Unexpected executor error {thrown}"
 
         if arguments.debug:
-            _LOGGER.exception("494100t %s" % message)
+            _LOGGER.exception(f"494100t {message}")
         else:
-            _LOGGER.critical("494110t %s" % message)
+            _LOGGER.critical(f"494110t {message}")
 
         answer = {
             "success" : False ,
@@ -274,8 +235,7 @@ def lambdaHandler ( event = None, context = None ):
     except Exception as thrown:
         errorType = type(thrown).__name__
         errorTrace = traceback.format_tb(thrown.__traceback__, limit=5)
-        message = "lambda raised exception (%s): %s\n%s" % \
-            (errorType, thrown, errorTrace)
+        message = f"lambda raised exception ({errorType}): {thrown}\n{errorTrace}"
 
         response = {
             "message": str(thrown),
@@ -325,13 +285,12 @@ if __name__ == "__main__":
 
     # Catch trouble
     except Exception as thrown:
-        message = "command invocation raised (%s): %s" % \
-            (type(thrown).__name__, thrown)
+        message = f"command invocation raised ({type(thrown).__name__}): {thrown}"
 
         # This will generate a traceback
         if arguments.debug:
-            _LOGGER.exception("494120i %s" % message)
+            _LOGGER.exception(f"494120i {message}")
 
         # This will not generate a traceback
         else:
-            _LOGGER.critical("494130i %s" % message)
+            _LOGGER.critical(f"494130i {message}")

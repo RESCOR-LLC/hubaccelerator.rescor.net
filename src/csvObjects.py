@@ -1,7 +1,5 @@
-#!/usr/local/bin/python3
-# Objects used in HubAccelerator
-# Update 20200827
-# Update 20210225 - Make it work with GovCloud
+#!/usr/bin/env python3
+"""HubAccelerator shared objects — AWS service abstractions for Security Hub, S3, SSM, and STS."""
 
 import boto3
 import botocore
@@ -26,14 +24,41 @@ logging.basicConfig(level=_DEFAULT_LOGGING_LEVEL)
 _LOGGER = logging.getLogger()
 _LOGGER.setLevel(_DEFAULT_LOGGING_LEVEL)
 
-# Simplify the extraction of error detail from botocore.exception.ClientError
-errorCode = lambda exception: exception.response \
-    .get("Error", {}) \
-    .get("Code", "INVALID") if getattr(exception, "response") \
-    else type(exception).__name__
+def error_code(exception: Exception) -> str:
+    """Extract error code from botocore ClientError, or return exception type name."""
+    response = getattr(exception, 'response', None)
+    if response:
+        return response.get('Error', {}).get('Code', 'UNKNOWN')
+    return type(exception).__name__
+
+def choose(choices: dict) -> list:
+    """Select the first non-empty value from an ordered dict of choices.
+    Parses string values as JSON arrays or comma-separated lists."""
+    for name, value in choices.items():
+        if value:
+            _LOGGER.info(f'choose: getting value from {name}')
+            answer = value
+            break
+
+    if not isinstance(answer, list):
+        candidate = answer
+
+        try:
+            answer = json.loads(candidate)
+        except Exception:
+            try:
+                answer = re.sub(r'\s*[\[\]\s]\s*', '', candidate).split(',')
+            except Exception as thrown:
+                _LOGGER.error(f'choose: cannot parse {candidate} at all: {thrown}')
+                raise thrown
+
+        _LOGGER.info(f'choose: candidate {candidate} ({type(candidate).__name__}) '
+            f'to {answer} ({type(answer).__name__})')
+
+    return answer
 
 ################################################################################
-# 
+#
 ################################################################################
 class FindingValueError (Exception):
     """
@@ -131,14 +156,13 @@ class FindingColumn:
         2. If the transform is callable, the transform return value is used
         3. Else, the transform value is used
         """
-        _LOGGER.debug("496010d FindingColumn.value %s" % initializer)
+        _LOGGER.debug(f"496010d FindingColumn.value {initializer}")
 
         # An API result dict is supplied
         if isinstance(initializer, dict):
             candidate = self.deep(initializer)
 
-            _LOGGER.debug("496020d processing an API result %s = '%s'" % \
-                (self.columnName, candidate))
+            _LOGGER.debug(f"496020d processing an API result {self.columnName} = '{candidate}'")
 
             self.transform = self.d2l 
             self.parameters = self.d2lParameters
@@ -149,8 +173,7 @@ class FindingColumn:
             except (ValueError, IndexError):
                 candidate = None
                 
-            _LOGGER.debug("496030d processing a CSV column %d (%s) = '%s'" % \
-                (self.columnNumber, self.columnName, candidate))
+            _LOGGER.debug(f"496030d processing a CSV column {self.columnNumber} ({self.columnName}) = '{candidate}'")
             
             self.transform = self.l2d
             self.parameters = self.l2dParameters
@@ -170,13 +193,11 @@ class FindingColumn:
         else:
             answer = self.transform 
 
-        _LOGGER.debug("496050d %s source is %s candidate is [%s]" \
-            % (self.columnName, type(initializer).__name__, candidate))
+        _LOGGER.debug(f"496050d {self.columnName} source is {type(initializer).__name__} candidate is [{candidate}]")
 
         self._value = answer if answer != '' else None
 
-        _LOGGER.debug("496060d %s transformed is [%s]" \
-            % (self.columnName, answer))
+        _LOGGER.debug(f"496060d {self.columnName} transformed is [{answer}]")
     #---------------------------------------------------------------------------
     def key (self):
         """
@@ -234,8 +255,7 @@ class FindingColumnMap:
             self.itemMap[item.columnName] = item
             self.columns += 1
 
-            _LOGGER.debug("496080d mapped column number %d to column name %s"
-                % (item.columnNumber, item.columnName))
+            _LOGGER.debug(f"496080d mapped column number {item.columnNumber} to column name {item.columnName}")
     #---------------------------------------------------------------------------
     def __getitem__ (self, item=None):
         """
@@ -354,8 +374,7 @@ class Finding:
             setattr(self, name, value)
             self.findingColumn[name] = descriptor
 
-            _LOGGER.debug("496100d mapped %s to column %s with value [%s]" \
-                % (descriptor.keys, name, value))
+            _LOGGER.debug(f"496100d mapped {descriptor.keys} to column {name} with value [{value}]")
 
         return row
     #---------------------------------------------------------------------------
@@ -376,8 +395,7 @@ class Finding:
             self.findingColumn[name] = descriptor
 
             # Now we build up the finding 
-            _LOGGER.debug("496110d %s deep set %s = %s" % \
-                (name, descriptor.keys, value))
+            _LOGGER.debug(f"496110d {name} deep set {descriptor.keys} = {value}")
 
             Finding._deepSet(finding, descriptor.keys, value)
 
@@ -559,7 +577,7 @@ class FindingActions:
         attribute of the finding.
         """
         if not isinstance(actor, Actor) or not isinstance(finding, Finding):
-            _LOGGER.warning("496130w missing actor or finding for '%s'" % value)
+            _LOGGER.warning(f"496130w missing actor or finding for '{value}'")
             answer = None
         else:
             if finding.NoteText:
@@ -589,7 +607,7 @@ class FindingActions:
             _partition = resource.get("Partition")
             _region = resource.get("Region")
 
-            answer.append("%s, %s, %s, %s" % (_type, _id, _partition, _region))
+            answer.append(f"{_type}, {_id}, {_partition}, {_region}")
 
         return "".join(answer)
     #---------------------------------------------------------------------------
@@ -607,7 +625,7 @@ class FindingActions:
 
                 if (answer < 0) or (answer > 100):
                     raise FindingValueError(
-                        "%d is not an int between 0 and 100" % value
+                        f"{value} is not an int between 0 and 100"
                     )
             except:
                 try:
@@ -620,7 +638,7 @@ class FindingActions:
             answer = value
         else:
             raise FindingValueError(
-                "%d is not a float or int between 0 and 100" % value
+                f"{value} is not a float or int between 0 and 100"
             )
 
         return answer
@@ -641,7 +659,7 @@ class FindingActions:
                 answer = value.upper()
             else:
                 raise FindingValueError(
-                    "'%s' is not a valid severity label" % value
+                    f"'{value}' is not a valid severity label"
                 )
 
         return answer
@@ -665,7 +683,7 @@ class FindingActions:
                 answer = candidate
             else:
                 raise FindingValueError(
-                    "'%s' is not a valid verification state" % value
+                    f"'{value}' is not a valid verification state"
                 )
 
         return answer
@@ -686,7 +704,7 @@ class FindingActions:
                 answer = value.upper()
             else:
                 raise FindingValueError(
-                    "'%s' is not a valid workflow state" % value
+                    f"'{value}' is not a valid workflow state"
                 )
 
         return answer
@@ -752,15 +770,14 @@ class Actor:
             _LOGGER.debug(f'496145d service {service} set to _REGION_MODE_SINGLE')
 
         else:
-            raise ActorException("496150t region must be a region name or list of regions [%s]" % region)
+            raise ActorException(f"496150t region must be a region name or list of regions [{region}]")
 
         # Get authorization
         self.authorize(regions=self.regions)
 
         # Create a client for the specified regions
         for region in self.regions:
-            _LOGGER.debug("496160d create %s client in region %s" 
-                % (self.service, region))
+            _LOGGER.debug(f"496160d create {self.service} client in region {region}")
 
             self.client[region] = self.getClient(region)
     #---------------------------------------------------------------------------
@@ -776,7 +793,7 @@ class Actor:
         elif re.match(r'^us-', candidate):
             answer = "aws"
         else:
-            raise ActorException("496170s region %s can't be mapped to a partition")
+            raise ActorException(f"496170s region {candidate} can't be mapped to a partition")
 
         _LOGGER.debug(f'496180d mapped region {candidate} to partition {answer}')
         
@@ -850,7 +867,7 @@ class Actor:
         try:
             # Obtain an STS client
             client = boto3.client("sts", region_name=region)
-            _LOGGER.debug("496210d obtained STS client %s" % client)
+            _LOGGER.debug(f"496210d obtained STS client {client}")
 
             # No role supplied - use environment credentials
             if not self.role:
@@ -859,11 +876,11 @@ class Actor:
 
             # Role supplied, try to assume the role
             else:
-                _LOGGER.debug("496230d attempt to assume role %s" % self.role)
+                _LOGGER.debug(f"496230d attempt to assume role {self.role}")
 
                 answer = client.assume_role(
                     RoleArn=self.role, 
-                    RoleSessionName=("%s-access" % self.service)
+                    RoleSessionName=f"{self.service}-access"
                 )
 
                 self.accessKeyId = answer["Credentials"]["AccessKeyId"]
@@ -871,15 +888,14 @@ class Actor:
                 self.sessionToken = answer["Credentials"]["SessionToken"]
                 self.authorized = True
 
-                _LOGGER.info("496240i assumed role %s for service %s" \
-                    % (self.role, self.service))
+                _LOGGER.info(f"496240i assumed role {self.role} for service {self.service}")
 
             # Now get the principal name of the authorized identity
             self.principal = client.get_caller_identity()
         
         # Catch client errors
         except ClientError as thrown:
-            _LOGGER.critical(f'496250d threw {errorCode(thrown)}: {thrown}')
+            _LOGGER.critical(f'496250d threw {error_code(thrown)}: {thrown}')
             self.authorized = False
 
         # If we got this far, we're authorized
@@ -964,7 +980,7 @@ class SsmActor (Actor):
         try:
             answer = self.primaryClient.get_parameters(Names=names)
 
-            _LOGGER.debug("496280d result from ssm:get_parameters %s" % answer)
+            _LOGGER.debug(f"496280d result from ssm:get_parameters {answer}")
 
             for candidate in answer["Parameters"]:
                 name = candidate["Name"]
@@ -978,15 +994,15 @@ class SsmActor (Actor):
                 _LOGGER.debug(f'496290i SSM {name} = {value}')
 
             for name in answer["InvalidParameters"]:
-                _LOGGER.info("496300d parameter '%s' not found" % name)
+                _LOGGER.info(f"496300d parameter '{name}' not found")
                 answer[name] = None
 
         except Exception as thrown:
-            _LOGGER.error("496310e cannot get parameters: %s" % str(thrown))
+            _LOGGER.error(f"496310e cannot get parameters: {thrown}")
 
             if not single:
                 for name in names:
-                    _LOGGER.info("496320d parameter '%s' set to None" % name)
+                    _LOGGER.info(f"496320d parameter '{name}' set to None")
                     answer[name] = None
 
         return answer
@@ -1077,8 +1093,7 @@ class S3Actor(Actor):
 
         except botocore.exceptions.ClientError as thrown:
             answer = None
-            _LOGGER.critical("496330s cannot put object %s to bucket %s: %s" \
-                % (target, self.bucket, str(thrown)))
+            _LOGGER.critical(f"496330s cannot put object {target} to bucket {self.bucket}: {thrown}")
 
         return answer
     #---------------------------------------------------------------------------
@@ -1129,8 +1144,7 @@ class S3Actor(Actor):
                     answer = [ line.strip() for line in candidate.splitlines() ]
             except Exception as thrown:
                 answer = None
-                _LOGGER.critical("496340s cannot read file %s: %s" \
-                    % (source, str(thrown)))
+                _LOGGER.critical(f"496340s cannot read file {source}: {thrown}")
         else:
             bucket = bucket if bucket else self.bucket
             key = key if key else self.objectKey
@@ -1149,8 +1163,7 @@ class S3Actor(Actor):
                     answer = [ line.strip() for line in candidate.splitlines() ]
             except botocore.exceptions.ClientError as thrown:
                 answer = None
-                _LOGGER.critical("496350s cannot get object %s from bucket %s: %s" \
-                    % (key, bucket, str(thrown)))
+                _LOGGER.critical(f"496350s cannot get object {key} from bucket {bucket}: {thrown}")
 
         return answer   
 ################################################################################
@@ -1191,8 +1204,7 @@ class HubActor (Actor):
         except Exception as thrown:
             response = None
 
-            _LOGGER.critical("496360t securityhub:batch_update_findings: %s" \
-                % str(thrown))
+            _LOGGER.critical(f"496360t securityhub:batch_update_findings: {thrown}")
 
         return response
     #---------------------------------------------------------------------------
@@ -1235,8 +1247,7 @@ class HubActor (Actor):
                     downloaded += len(findings)
 
                     if (downloaded % 1000) == 0:
-                        _LOGGER.info("496380i ... %8d findings retrieved" \
-                            % downloaded)
+                        _LOGGER.info(f"496380i ... {downloaded:8d} findings retrieved")
     
                     self.findings += findings
     
@@ -1246,8 +1257,7 @@ class HubActor (Actor):
 
                     # If we've exceeded the finding limit, we're done
                     if (limit != 0) and (downloaded > limit):
-                        _LOGGER.info("496390i %d findings exceeds limit of %d" \
-                            % (downloaded, limit))
+                        _LOGGER.info(f"496390i {downloaded} findings exceeds limit of {limit}")
                         break
     
                 self.count = len(self.findings)
@@ -1259,8 +1269,7 @@ class HubActor (Actor):
                 _LOGGER.error('496400e cannot retrieve findings for ' 
                     + f'region {region}: {thrown.response["Error"]["Message"]}')
 
-        _LOGGER.info("496410i retrieved %d total findings from all regions" \
-            % downloaded)
+        _LOGGER.info(f"496410i retrieved {downloaded} total findings from all regions")
 
         return self.findings
     #---------------------------------------------------------------------------
@@ -1309,26 +1318,22 @@ class FindingUpdate:
 
             # Keep track of keys
             if column.isKey:
-                _LOGGER.debug("496430d column %s value '%s' is a key" \
-                    % (name, value))
+                _LOGGER.debug(f"496430d column {name} value '{value}' is a key")
 
                 self.keys[name] = getattr(finding, name)
 
             # Do not process non-updatable columns
             if not column.isUpdatable:
-                _LOGGER.debug("496440d skipping column %s - not updatable" \
-
-                    % name)
+                _LOGGER.debug(f"496440d skipping column {name} - not updatable")
                 continue
 
             # Do not process empty strings or None
             if (value != 0) and not value:
-                _LOGGER.debug("496450d skipping column %s value '%s'" \
-                    % (name, value))
+                _LOGGER.debug(f"496450d skipping column {name} value '{value}'")
 
                 continue
 
-            _LOGGER.debug("496460d column %s value '%s'" % (name, value))
+            _LOGGER.debug(f"496460d column {name} value '{value}'")
 
             # Save the change (we know this is an updatable column)
             self.attributes.append(name)
@@ -1343,8 +1348,7 @@ class FindingUpdate:
 
             setattr(self, name, value)
 
-        _LOGGER.debug("496470d finding %s\n\tsignature %s\n\tchanges %d" % \
-            (self.keyString, self.signature, self.changes))
+        _LOGGER.debug(f"496470d finding {self.keyString}\n\tsignature {self.signature}\n\tchanges {self.changes}")
     #---------------------------------------------------------------------------
     @property
     def updateRegion (self):
@@ -1361,8 +1365,7 @@ class FindingUpdate:
             try:
                 answer = identity.split(":")[3]
             except Exception as thrown:
-                raise MalformedUpdate("496490t malformed finding ID %s: %s" \
-                    % (identity, thrown))
+                raise MalformedUpdate(f"496490t malformed finding ID {identity}: {thrown}")
 
         return answer
     #---------------------------------------------------------------------------
@@ -1378,7 +1381,7 @@ class FindingUpdate:
             value = getattr(self, attribute)
 
             if value:
-                answer.append("%s=%s" % (attribute, value))
+                answer.append(f"{attribute}={value}")
 
         answer = self.updateRegion + "|".join(answer)
 
@@ -1393,21 +1396,13 @@ class FindingUpdate:
         answer = []
 
         for key in sorted(self.keys.keys()):
-            answer.append("%s=%s" % (key, self.keys.get(key)))
+            answer.append(f"{key}={self.keys.get(key)}")
 
         answer = "|".join(answer)
 
         return answer
 ################################################################################
-# 
-################################################################################
-class StartNextUpdateBatch (Exception): 
-    """
-    Raise this exception when an update set has 100 findings
-    """
-    pass
-################################################################################
-# 
+#
 ################################################################################
 class MinimumUpdateList:
     """
@@ -1437,19 +1432,17 @@ class MinimumUpdateList:
             region = update.updateRegion
             signature = region + "|" + update.signature
 
-            _LOGGER.debug("496500d found signature '%s'" % signature)
+            _LOGGER.debug(f"496500d found signature '{signature}'")
 
             # This is the first time we've seen this signature
             if not (signature in self.update):
-                _LOGGER.debug("496510d saved update for signature '%s'" \
-                    % signature)
+                _LOGGER.debug(f"496510d saved update for signature '{signature}'")
 
                 self.update[signature] = update
         
             # This is the first time we've seen this finding
             if not (signature in self.findings):
-                _LOGGER.debug("496520d initialized findings and region for '%s'" \
-                    % signature)
+                _LOGGER.debug(f"496520d initialized findings and region for '{signature}'")
 
                 self.findings[signature] = []
                 self.regions[signature] = region
@@ -1457,7 +1450,7 @@ class MinimumUpdateList:
 
             # Track all findings for a signature
             self.findings[signature].append(finding)
-            _LOGGER.debug("496530d added finding to '%s'" % signature)
+            _LOGGER.debug(f"496530d added finding to '{signature}'")
     #---------------------------------------------------------------------------
     @staticmethod
     def updateCount (update=[]):
@@ -1523,7 +1516,7 @@ class MinimumUpdateList:
             response = actor.updateFindings(region=region, parameters=update)
         except Exception as thrown:
             response = None
-            _LOGGER.critical("496600s unexpected error %s" % str(thrown))
+            _LOGGER.critical(f"496600s unexpected error {thrown}")
 
         if (response == None):
             _LOGGER.critical("496610s bad things in MinimumUpdateList.apply")

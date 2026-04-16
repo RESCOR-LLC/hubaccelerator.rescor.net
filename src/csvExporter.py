@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/python3
+#!/usr/bin/env python3
 """
 Convert SecurityHub findings to CSV and store in an S3 bucket
 
@@ -27,9 +27,6 @@ import re
 _DEFAULT_REGION_STRING = ""
 _DEFAULT_REGION_LIST = [] #_DEFAULT_REGION_STRING.split(",")
 
-# Retrieves the name of the current function (for logging purposes)
-this = lambda frame=0 : sys._getframe(frame+1).f_code.co_name
-
 _DEFAULT_LOGGING_LEVEL = logging.INFO
 """ Default logging level """
 
@@ -42,37 +39,7 @@ _LOGGER.setLevel(_DEFAULT_LOGGING_LEVEL)
 """ Initialized logging RootLogger instance """
 
 ################################################################################
-#### 
-################################################################################
-def choose (choices={}):
-    """
-    Choose between an option and an environment variable (the option always
-    has priority, if specified)
-    """
-    for name, value in choices.items():
-        if value:
-            _LOGGER.info(f'csvExport.493010 getting region list from {name}')
-            answer = value
-            break
-
-    if not isinstance(answer, list):
-        candidate = answer
-
-        try:
-            answer = json.loads(candidate)
-        except Exception as thrown:
-            try:
-                answer = re.sub('\s*[\[\]\s]\s*', '', candidate).split(',')
-            except Exception as thrown:
-                _LOGGER.error(f'493013e cannot parse {candidate} at all: {thrown}')
-                raise thrown
-
-        _LOGGER.info(f'493016i candidate {candidate} ({type(candidate).__name__}) ' +
-            f'to {answer} ({type(answer).__name__})')
-
-    return answer
-################################################################################
-#### 
+####
 ################################################################################
 def getFilters ( candidate = None ):
     """
@@ -120,13 +87,13 @@ def executor (role=None, region=None, filters=None, bucket=None, limit=0,
     ssmActor = csvo.SsmActor(role=role, region=region)
 
     # Get a list of Security Hub regions we wish to act on
-    regions = choose({
+    regions = csvo.choose({
         'Environment variable CSV_SECURITYHUB_REGIONLIST': os.environ.get("CSV_SECURITYHUB_REGIONLIST"),
         'SSM region list /csvManager/regionList': re.compile("\s*,\s*").split(getattr(ssmActor, "/csvManager/regionList", region)),
         'ssm:getSupportedRegions API': ssmActor.getSupportedRegions(service="securityhub")
     })
-    
-    _LOGGER.info("493040i selected SecurityHub regions %s" % regions)
+
+    _LOGGER.info(f"493040i selected SecurityHub regions {regions}")
 
     # Get information about the bucket
     folder = getattr(ssmActor, "/csvManager/folder/findings", None)
@@ -167,8 +134,7 @@ def executor (role=None, region=None, filters=None, bucket=None, limit=0,
 
                 # Start the CSV file with a header
                 if first:
-                    _LOGGER.debug("493080d finding object %s keys %s" \
-                        % (findingObject, findingObject.columns))
+                    _LOGGER.debug(f"493080d finding object {findingObject} keys {findingObject.columns}")
 
                     writer = csv.DictWriter(target, 
                         fieldnames=findingObject.columns)
@@ -181,7 +147,7 @@ def executor (role=None, region=None, filters=None, bucket=None, limit=0,
                 first = False
 
         # Announce completion of write
-        _LOGGER.info("493090i findings written to %s" % localFile)
+        _LOGGER.info(f"493090i findings written to {localFile}")
 
         # Place the object in the S3 bucket
         s3Actor.put()
@@ -191,7 +157,7 @@ def executor (role=None, region=None, filters=None, bucket=None, limit=0,
 
         # Determine whether to retain the local file or not
         if retain:
-            _LOGGER.warning("493110w local file %s retained" % localFile)
+            _LOGGER.warning(f"493110w local file {localFile} retained")
         else:
             os.unlink(localFile)
 
@@ -234,7 +200,7 @@ def lambdaHandler ( event = None, context = None ):
     # Determine if Lambda was invoked manually or via an event
     if eventData:
         eventType = eventData.get("detail-type", "UNKNOWN")
-        _LOGGER.info("493140i Lambda invoked by %s" % eventType)
+        _LOGGER.info(f"493140i Lambda invoked by {eventType}")
     else:
         _LOGGER.info("493150i Lambda invoked extemporaneously")
 
@@ -261,8 +227,7 @@ def lambdaHandler ( event = None, context = None ):
         errorType = type(thrown).__name__
         errorTrace = traceback.format_tb(thrown.__traceback__, limit=5)
 
-        _LOGGER.error("493160e Lambda failed (%s): %s\n%s" \
-            % (errorType, thrown, errorTrace))
+        _LOGGER.error(f"493160e Lambda failed ({errorType}): {thrown}\n{errorTrace}")
         
         answer = { 
             "message" : thrown ,
@@ -308,5 +273,4 @@ if __name__ == "__main__":
         )
 
     except Exception as thrown:
-        _LOGGER.exception("493170t unexpected command invocation error %s" \
-            % str(thrown))
+        _LOGGER.exception(f"493170t unexpected command invocation error {thrown}")

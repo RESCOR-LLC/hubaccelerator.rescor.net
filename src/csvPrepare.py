@@ -1,4 +1,4 @@
-#!/opt/homebrew/bin/python3
+#!/usr/bin/env python3
 """
 Prepare distribution ZIP file for HubAccelerator. 
 The following parameters may be specified (use csvPrepare.py -h for help):
@@ -19,9 +19,6 @@ import re
 import time
 import logging
 import csvObjects as csvo
-
-# Retrieves the name of the current function (for logging purposes)
-this = lambda frame=0 : sys._getframe(frame+1).f_code.co_name
 
 _DEFAULT_LOGGING_LEVEL = logging.INFO
 """ Default logging level """
