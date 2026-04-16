@@ -1205,66 +1205,46 @@ class HubActor (Actor):
     #---------------------------------------------------------------------------
     def downloadFindings (self, regions=None, filters={}, limit=0):
         """
-        Get findings from Security Hub using the securityhub:get_findings API,
+        Get findings from Security Hub using the paginator API,
         applying filters as necessary, and limiting results as necessary.
         """
         regions = self.regions
-
         self.findings = []
         downloaded = 0
 
-        # Get findings for each region
         for region in regions:
-            _LOGGER.info(f'496370i retrieving findings from region {region}')
-            _LOGGER.info(f'496373i applying filters: {json.dumps(filters, indent=2)}')
-
-            # Get SecurityHub client for this region
+            _LOGGER.info(f'retrieving findings from region {region}')
             client = self.client[region]
 
             try:
-                token = None
-    
-                while True:
-                    if not token:
-                        answer = client.get_findings(
-                            Filters=filters, 
-                            MaxResults=100
-                        ) 
-                    else:
-                        answer = client.get_findings(
-                            Filters=filters, 
-                            MaxResults=100, 
-                            NextToken=token
-                        )
-    
-                    token = answer.get("NextToken", None)
-                    findings = answer.get("Findings", [])
+                paginator = client.get_paginator('get_findings')
+                page_config = {'MaxItems': limit} if limit > 0 else {}
+                pages = paginator.paginate(
+                    Filters=filters,
+                    PaginationConfig={**page_config, 'PageSize': 100}
+                )
+
+                for page in pages:
+                    findings = page.get("Findings", [])
+                    self.findings += findings
                     downloaded += len(findings)
 
-                    if (downloaded % 1000) == 0:
-                        _LOGGER.info(f"496380i ... {downloaded:8d} findings retrieved")
-    
-                    self.findings += findings
-    
-                    # This is the last set of findings if there is no "nexttoken"
-                    if not token: 
+                    if downloaded % 1000 == 0 and downloaded > 0:
+                        _LOGGER.info(f'... {downloaded:8d} findings retrieved')
+
+                    if limit > 0 and downloaded >= limit:
+                        _LOGGER.info(f'{downloaded} findings reached limit of {limit}')
                         break
 
-                    # If we've exceeded the finding limit, we're done
-                    if (limit != 0) and (downloaded > limit):
-                        _LOGGER.info(f"496390i {downloaded} findings exceeds limit of {limit}")
-                        break
-    
-                self.count = len(self.findings)
-
-                if (limit != 0) and (downloaded > limit):
+                if limit > 0 and downloaded >= limit:
                     break
-    
-            except client.exceptions.InvalidAccessException as thrown:
-                _LOGGER.error('496400e cannot retrieve findings for ' 
-                    + f'region {region}: {thrown.response["Error"]["Message"]}')
 
-        _LOGGER.info(f"496410i retrieved {downloaded} total findings from all regions")
+            except client.exceptions.InvalidAccessException as thrown:
+                _LOGGER.error(f'cannot retrieve findings for region {region}: '
+                    f'{thrown.response["Error"]["Message"]}')
+
+        self.count = len(self.findings)
+        _LOGGER.info(f'retrieved {downloaded} total findings from {len(regions)} region(s)')
 
         return self.findings
     #---------------------------------------------------------------------------
