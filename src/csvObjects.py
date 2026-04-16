@@ -154,14 +154,6 @@ class FindingColumn:
         self.parameters = {}
         self._value = None
     #---------------------------------------------------------------------------
-    @property 
-    def rawValue (self):
-        """
-        The raw value that came from the API finding dictionary or the CSV 
-        column, depending on how this finding was initialized.
-        """
-        return self._value
-    #---------------------------------------------------------------------------
     @property
     def value (self):
         """
@@ -1099,26 +1091,6 @@ class S3Actor(Actor):
         except botocore.exceptions.ClientError as thrown:
             answer = None
             _LOGGER.critical(f"496330s cannot put object {target} to bucket {self.bucket}: {thrown}")
-
-        return answer
-    #---------------------------------------------------------------------------
-    def parseS3Url (self, url=None):
-        """
-        Parse an S3 url into bucket and key components.
-        """
-        # This pattern will match s3://[bucket]/[key]
-        pattern = re.compile(
-            r'^s3://(?!^(\d{1,3}\.){3}\d{1,3}$)(^[a-z0-9]([a-z0-9-]*(\.[a-z0-9])?)*$)(/*(.*))',
-            flags=re.IGNORECASE
-        )
-
-        # Perform the match
-        match = pattern.match(url) if url else None
-
-        if not match:
-            answer = None
-        else:
-            answer = ( match.group(1), match.group(3) )
 
         return answer
     #---------------------------------------------------------------------------
