@@ -5,3 +5,5 @@ __pycache__/
 *.key
 .DS_Store
 *.swp
+cdk/node_modules
+cdk/cdk.out
