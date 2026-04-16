@@ -39,9 +39,23 @@ AWS Security Hub aggregates findings from GuardDuty, Inspector, Macie, Config, a
                               [CLI: csvUpdater] → [Security Hub BatchUpdateFindings]
 ```
 
+### Local File Support
+
+Both the exporter and updater support local file operations as an alternative to S3. The exporter can write findings directly to a local CSV file (use `--retain-local` to keep it), and the updater can read from either an S3 URL (`s3://bucket/key`) or a local file path. This is often the most direct workflow for analysts working from their workstation:
+
+```bash
+# Export to S3 and keep a local copy
+python3 src/csvExporter.py --role-arn ... --primary-region us-east-1 \
+  --bucket my-bucket --retain-local
+
+# Edit the local CSV in Excel, then update directly from the local file
+python3 src/csvUpdater.py --role-arn ... --primary-region us-east-1 \
+  --input /tmp/findings-2026-04-16.csv
+```
+
 ## Requirements
 
-- Python 3.9+
+- Python 3.12+ (Lambda runtime; CLI works with 3.9+)
 - AWS credentials with Security Hub read access (exporter) and write access (updater)
 - An S3 bucket for storing exported findings
 - An IAM role for Lambda execution (if using scheduled exports)
@@ -49,30 +63,25 @@ AWS Security Hub aggregates findings from GuardDuty, Inspector, Macie, Config, a
 
 ## Installation
 
-### Infrastructure
+### Infrastructure (CDK)
 
-Three CloudFormation templates in `cfn/` provision the required AWS resources:
+A single CDK stack in `cdk/` provisions all required AWS resources:
 
-1. **`CsvDatastore.yaml`** — S3 bucket with lifecycle policies (findings retention, Glacier transition)
-2. **`CsvExporter.yaml`** — Lambda function, EventBridge schedule, SSM automation for exports
-3. **`CsvUpdater.yaml`** — Lambda function and SSM automation for updates
-
-Deploy in order:
 ```bash
-aws cloudformation deploy --template-file cfn/CsvDatastore.yaml \
-  --stack-name HubAccelerator-Datastore \
-  --parameter-overrides AccessPrincipals=arn:aws:iam::ACCOUNT:role/YourRole
-
-aws cloudformation deploy --template-file cfn/CsvExporter.yaml \
-  --stack-name HubAccelerator-Exporter \
-  --parameter-overrides PrimaryRegion=us-east-1 \
-  --capabilities CAPABILITY_NAMED_IAM
-
-aws cloudformation deploy --template-file cfn/CsvUpdater.yaml \
-  --stack-name HubAccelerator-Updater \
-  --parameter-overrides PrimaryRegion=us-east-1 \
-  --capabilities CAPABILITY_NAMED_IAM
+cd cdk
+npm install
+cdk deploy
 ```
+
+This creates: S3 bucket (encrypted, versioned, object lock, lifecycle policies), SSM parameters, IAM role, Lambda functions (exporter + updater), and an EventBridge schedule for automated exports.
+
+Override defaults via CDK context:
+```bash
+cdk deploy --context exportSchedule="cron(0 6 ? * MON-FRI *)" \
+           --context regions="us-east-1,us-west-2"
+```
+
+Legacy CloudFormation templates are retained in `cfn/` for reference.
 
 ### CLI Usage
 
