@@ -84,17 +84,36 @@ def executor (role=None, region=None, filters=None, bucket=None, limit=0,
     Carry out the actions necessary to download and export SecurityHub findings,
     whether invoked as a Lambda or from the command line.
     """
+    # Auto-discover aggregation region and linked regions from Security Hub
+    aggregator = csvo.HubActor.discoverAggregator(region=region, role=role)
+
+    if aggregator:
+        # Use discovered aggregator configuration
+        if not region:
+            region = aggregator['aggregationRegion']
+        regions = aggregator['regions']
+        _LOGGER.info(f'using Security Hub aggregator: home={aggregator["aggregationRegion"]}, '
+            f'{len(regions)} region(s)')
+    else:
+        # Fall back to env/SSM/API region discovery
+        regions = None
+        env_regions = csvo.env("HUBACCELERATOR_REGIONLIST")
+        if env_regions:
+            regions = [r.strip() for r in env_regions.split(',') if r.strip()]
+
+        if not regions:
+            ssmActor = csvo.SsmActor(role=role, region=region)
+            ssm_regions = getattr(ssmActor, "/csvManager/regionList", None)
+            if ssm_regions:
+                regions = [r.strip() for r in ssm_regions.split(',') if r.strip()]
+
+        if not regions:
+            regions = [region] if region else ['us-east-1']
+
+        _LOGGER.info(f'no aggregator found — using regions: {regions}')
+
     # Get the SSM parameters and a client for further SSM operations
     ssmActor = csvo.SsmActor(role=role, region=region)
-
-    # Get a list of Security Hub regions we wish to act on
-    regions = csvo.choose({
-        'Environment variable HUBACCELERATOR_REGIONLIST': csvo.env("HUBACCELERATOR_REGIONLIST"),
-        'SSM region list /csvManager/regionList': re.compile("\s*,\s*").split(getattr(ssmActor, "/csvManager/regionList", region)),
-        'ssm:getSupportedRegions API': ssmActor.getSupportedRegions(service="securityhub")
-    })
-
-    _LOGGER.info(f"493040i selected SecurityHub regions {regions}")
 
     # Get information about the bucket
     folder = getattr(ssmActor, "/csvManager/folder/findings", None)
@@ -256,9 +275,10 @@ def main():
             help="Max findings to retrieve (default: unlimited)")
         parser.add_argument("--retain-local", action="store_true",
             dest="retainLocal", default=False, help="Keep local CSV copy")
-        parser.add_argument("--primary-region", dest="region",
+        parser.add_argument("--primary-region", "--region", dest="region",
             default=csvo.env("HUBACCELERATOR_REGION"),
-            help="Primary AWS region (default: from HUBACCELERATOR_REGION env)")
+            help="Primary AWS region (default: auto-discovered from Security Hub aggregator, "
+                 "or HUBACCELERATOR_REGION env)")
 
         arguments = parser.parse_args()
 

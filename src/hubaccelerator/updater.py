@@ -68,17 +68,31 @@ def executor (role=None, region=None, debug=False, input=None):
     processed = []
     unprocessed = []
 
-    # Get the SSM parameters and a client for further SSM operations
-    ssmActor = csvo.SsmActor(role=role, region=region)
+    # Auto-discover aggregation region and linked regions from Security Hub
+    aggregator = csvo.HubActor.discoverAggregator(region=region, role=role)
 
-    # Get a list of Security Hub regions we wish to act on
-    regions = csvo.choose({
-        'Environment variable HUBACCELERATOR_REGIONLIST': csvo.env("HUBACCELERATOR_REGIONLIST"),
-        'SSM region list /csvManager/regionList': re.compile("\s*,\s*").split(getattr(ssmActor, "/csvManager/regionList", region)),
-        'ssm:getSupportedRegions API': ssmActor.getSupportedRegions(service="securityhub")
-    })
+    if aggregator:
+        if not region:
+            region = aggregator['aggregationRegion']
+        regions = aggregator['regions']
+        _LOGGER.info(f'using Security Hub aggregator: home={aggregator["aggregationRegion"]}, '
+            f'{len(regions)} region(s)')
+    else:
+        regions = None
+        env_regions = csvo.env("HUBACCELERATOR_REGIONLIST")
+        if env_regions:
+            regions = [r.strip() for r in env_regions.split(',') if r.strip()]
 
-    _LOGGER.info(f"494010i selected SecurityHub regions {regions}")
+        if not regions:
+            ssmActor = csvo.SsmActor(role=role, region=region)
+            ssm_regions = getattr(ssmActor, "/csvManager/regionList", None)
+            if ssm_regions:
+                regions = [r.strip() for r in ssm_regions.split(',') if r.strip()]
+
+        if not regions:
+            regions = [region] if region else ['us-east-1']
+
+        _LOGGER.info(f'no aggregator found — using regions: {regions}')
 
     # Determine if input is S3 or local file
     source = InputDiscriminator(input)
@@ -270,9 +284,10 @@ def main():
             help="S3 URL (s3://bucket/key) or local file path")
         parser.add_argument("--debug", action="store_true", default=False,
             help="Verbose debug output")
-        parser.add_argument("--primary-region", dest="region",
+        parser.add_argument("--primary-region", "--region", dest="region",
             default=csvo.env("HUBACCELERATOR_REGION"),
-            help="Primary AWS region (default: from HUBACCELERATOR_REGION env)")
+            help="Primary AWS region (default: auto-discovered from Security Hub aggregator, "
+                 "or HUBACCELERATOR_REGION env)")
 
         arguments = parser.parse_args()
 
