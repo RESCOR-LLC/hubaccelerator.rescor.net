@@ -49,9 +49,8 @@ _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(_DEFAULT_LOGGING_LEVEL)
 
 # Suppress noisy boto3/botocore loggers (credential discovery, retries, etc.)
-for _quiet in ('botocore.credentials', 'botocore.utils', 'botocore.httpsession',
-               'botocore.endpoint', 'botocore.parsers', 'urllib3.connectionpool'):
-    logging.getLogger(_quiet).setLevel(logging.WARNING)
+for _quiet in ('botocore', 'boto3', 'urllib3', 's3transfer'):
+    logging.getLogger(_quiet).setLevel(logging.CRITICAL)
 
 # ---------------------------------------------------------------------------
 # Environment variable migration: HUBACCELERATOR_* (new) ← CSV_* (legacy)
