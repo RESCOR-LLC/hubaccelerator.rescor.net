@@ -142,6 +142,7 @@ def executor (role=None, region=None, filters=None, bucket=None, limit=0,
 
     if hubActor.count <= 0:
         _LOGGER.warning("no findings downloaded")
+        return {"success": True, "message": "No findings matched the filter", "count": 0}
     else:
         _LOGGER.info(f'preparing to write {hubActor.count} findings')
 
@@ -189,7 +190,7 @@ def executor (role=None, region=None, filters=None, bucket=None, limit=0,
             "exportKey" : s3Actor.objectKey
         }
 
-    return answer
+        return answer
 ################################################################################
 #### Lambda handler
 ################################################################################

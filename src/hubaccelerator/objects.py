@@ -48,6 +48,11 @@ logging.basicConfig(level=_DEFAULT_LOGGING_LEVEL, handlers=[_handler])
 _LOGGER = logging.getLogger(__name__)
 _LOGGER.setLevel(_DEFAULT_LOGGING_LEVEL)
 
+# Suppress noisy boto3/botocore loggers (credential discovery, retries, etc.)
+for _quiet in ('botocore.credentials', 'botocore.utils', 'botocore.httpsession',
+               'botocore.endpoint', 'botocore.parsers', 'urllib3.connectionpool'):
+    logging.getLogger(_quiet).setLevel(logging.WARNING)
+
 # ---------------------------------------------------------------------------
 # Environment variable migration: HUBACCELERATOR_* (new) ← CSV_* (legacy)
 # ---------------------------------------------------------------------------
@@ -1306,6 +1311,7 @@ class HubActor (Actor):
 
         except client.exceptions.InvalidAccessException as thrown:
             _LOGGER.warning(f'skipping region {region}: {thrown.response["Error"]["Message"]}')
+            return []
         except ClientError as thrown:
             code = error_code(thrown)
             if code in ('InvalidClientTokenId', 'UnrecognizedClientException',
@@ -1313,10 +1319,13 @@ class HubActor (Actor):
                 _LOGGER.warning(f'skipping region {region} (not enabled or no access): {code}')
             else:
                 _LOGGER.error(f'error in region {region}: {code}: {thrown}')
+            return []
         except Exception as thrown:
             _LOGGER.error(f'unexpected error in region {region}: {thrown}')
+            return []
 
-        _LOGGER.info(f'retrieved {len(findings)} findings from {region}')
+        if findings:
+            _LOGGER.info(f'retrieved {len(findings)} findings from {region}')
         return findings
 
     def downloadFindings (self, regions=None, filters={}, limit=0):
