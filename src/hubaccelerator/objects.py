@@ -26,8 +26,7 @@ _CURRENT_VERSION = "2022-02-11"
 
 _DEFAULT_LOGGING_LEVEL = logging.INFO
 
-# Structured JSON logging for CloudWatch Logs Insights compatibility.
-# Format: {"timestamp": "...", "level": "...", "module": "...", "message": "..."}
+# Logging: JSON in Lambda (for CloudWatch Logs Insights), plain text on terminal
 class _JsonFormatter(logging.Formatter):
     def format(self, record):
         return json.dumps({
@@ -38,9 +37,12 @@ class _JsonFormatter(logging.Formatter):
             "message": record.getMessage(),
         })
 
-# Configure root logger with JSON output (Lambda sends stdout to CloudWatch)
+_IS_LAMBDA = bool(os.environ.get('AWS_LAMBDA_FUNCTION_NAME'))
 _handler = logging.StreamHandler()
-_handler.setFormatter(_JsonFormatter())
+if _IS_LAMBDA:
+    _handler.setFormatter(_JsonFormatter())
+else:
+    _handler.setFormatter(logging.Formatter('%(levelname)s  %(message)s'))
 logging.basicConfig(level=_DEFAULT_LOGGING_LEVEL, handlers=[_handler])
 
 _LOGGER = logging.getLogger(__name__)
