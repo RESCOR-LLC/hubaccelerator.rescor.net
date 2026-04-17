@@ -129,10 +129,12 @@ def executor (role=None, region=None, filters=None, bucket=None, limit=0,
         role=role
     )
 
-    # Now obtain a client for SecurityHub regions
+    # Create SecurityHub actor — use aggregation region as primary (first in list)
+    # to ensure authorization works in a known-good region
+    ordered_regions = [region] + [r for r in regions if r != region] if region else regions
     hubActor = csvo.HubActor(
         role=role,
-        region=regions
+        region=ordered_regions
     )
 
     # Obtain the findings for all applicable regions

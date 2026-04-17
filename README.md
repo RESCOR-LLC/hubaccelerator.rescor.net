@@ -191,6 +191,64 @@ Security Hub's [Automation Rules](https://docs.aws.amazon.com/securityhub/latest
 
 HubAccelerator complements Automation Rules for the use case they don't cover: **periodic manual review of large finding sets**. When an analyst needs to review 500 findings, make disposition decisions in a spreadsheet, and push those decisions back to Security Hub in bulk, HubAccelerator provides the workflow.
 
+## Troubleshooting
+
+### Security Hub not enabled
+
+```
+Account XXXX is not subscribed to AWS Security Hub
+```
+
+Enable Security Hub in your primary region:
+
+```bash
+aws securityhub enable-security-hub --region us-east-1 --enable-default-standards
+```
+
+### No finding aggregator
+
+If `hubaccelerator-export` falls back to SSM/environment for region configuration, you may not have cross-region aggregation configured. Create an aggregator:
+
+```bash
+aws securityhub create-finding-aggregator \
+  --region us-east-1 \
+  --region-linking-mode ALL_REGIONS
+```
+
+### InvalidClientTokenId in some regions
+
+```
+skipping region ap-southeast-3 (not enabled or no access): InvalidClientTokenId
+```
+
+This is normal — opt-in regions (Bahrain, Cape Town, Jakarta, etc.) require explicit enablement in your AWS account before credentials work there. HubAccelerator skips these regions automatically and continues with the regions that are accessible.
+
+### AWS Organizations / multi-account setup
+
+For organizations using AWS Control Tower or multi-account Security Hub:
+
+1. **Enable Security Hub** on the management account (or let Control Tower do it)
+2. **Designate a delegated administrator** (typically the Audit account):
+   ```bash
+   aws securityhub enable-organization-admin-account \
+     --admin-account-id AUDIT_ACCOUNT_ID
+   ```
+3. **Create a finding aggregator** to pull findings from all regions
+4. **Run HubAccelerator** from the management account or the delegated admin account — either works, but the delegated admin is the intended pattern
+
+### Control Tower
+
+If your organization uses AWS Control Tower, Security Hub may be enabled automatically when the landing zone is created or updated. Check the landing zone status:
+
+```bash
+aws controltower get-landing-zone \
+  --landing-zone-identifier $(aws controltower list-landing-zones \
+    --query 'landingZones[0].arn' --output text) \
+  --query 'landingZone.{Status:status,Version:version}'
+```
+
+If the landing zone is still `PROCESSING`, wait for it to complete before enabling Security Hub manually.
+
 ## License
 
 Copyright 2020–2026 Andrew T. Robinson / RESCOR LLC. All Rights Reserved.

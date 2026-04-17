@@ -806,10 +806,22 @@ class Actor:
         # Establish a boto3 Session (assumes role if needed, reuses credentials)
         self.authorize(regions=self.regions)
 
-        # Create a client for each region from the shared session
+        # Create a client for each region from the shared session.
+        # Skip regions where the client can't be created (opt-in regions
+        # that aren't enabled will fail silently here rather than aborting).
+        valid_regions = []
         for r in self.regions:
-            _LOGGER.debug(f"creating {self.service} client in region {r}")
-            self.client[r] = self.getClient(r)
+            c = self.getClient(r)
+            if c:
+                self.client[r] = c
+                valid_regions.append(r)
+            else:
+                _LOGGER.warning(f'skipping region {r} — client creation failed')
+
+        if not valid_regions:
+            raise ActorException(f'no valid regions for service {self.service}')
+
+        self.regions = valid_regions
     #---------------------------------------------------------------------------
     def getPartition(self, region:str) -> str:
         """
@@ -1293,8 +1305,16 @@ class HubActor (Actor):
                     break
 
         except client.exceptions.InvalidAccessException as thrown:
-            _LOGGER.error(f'cannot retrieve findings for region {region}: '
-                f'{thrown.response["Error"]["Message"]}')
+            _LOGGER.warning(f'skipping region {region}: {thrown.response["Error"]["Message"]}')
+        except ClientError as thrown:
+            code = error_code(thrown)
+            if code in ('InvalidClientTokenId', 'UnrecognizedClientException',
+                        'AuthFailure', 'OptInRequired'):
+                _LOGGER.warning(f'skipping region {region} (not enabled or no access): {code}')
+            else:
+                _LOGGER.error(f'error in region {region}: {code}: {thrown}')
+        except Exception as thrown:
+            _LOGGER.error(f'unexpected error in region {region}: {thrown}')
 
         _LOGGER.info(f'retrieved {len(findings)} findings from {region}')
         return findings
