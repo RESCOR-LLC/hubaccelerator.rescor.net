@@ -251,8 +251,18 @@ If the landing zone is still `PROCESSING`, wait for it to complete before enabli
 
 ## License
 
-Copyright 2020–2026 Andrew T. Robinson / RESCOR LLC. All Rights Reserved.
+HubAccelerator is licensed under the GNU Affero General Public License v3.0 (AGPL-3.0). See [LICENSE](LICENSE) for the full text.
+
+In short: you can use, modify, and redistribute this code under the terms of the AGPL-3.0. If you run a modified version on a network service, you must make the source available to users of that service.
+
+## Reporting security issues
+
+See [SECURITY.md](SECURITY.md). Please do not file public issues for vulnerabilities; email the address listed there.
+
+## Contributing
+
+Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## Author
 
-Andrew T. Robinson — [RESCOR LLC](https://www.rescor.net)
+Andrew T. Robinson — [LinkedIn](https://linkedin.com/in/atrobinson)

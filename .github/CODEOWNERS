@@ -1,0 +1,17 @@
+# HubAccelerator — code ownership.
+#
+# Until the project grows additional maintainers, all changes go through
+# Andy. PR reviews are auto-requested from the listed owner; merging
+# without that review still requires the configured branch protection
+# settings on `main` to allow it.
+
+*       @atrobinson
+
+# CDK and CloudFormation: same owner, but listed explicitly so it's
+# clear that infrastructure changes are reviewed alongside Python.
+/cdk/   @atrobinson
+/cfn/   @atrobinson
+
+# Tests and CI workflow.
+/tests/                  @atrobinson
+/.github/workflows/      @atrobinson

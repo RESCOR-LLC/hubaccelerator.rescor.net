@@ -1,0 +1,162 @@
+title: {
+  label: "HubAccelerator — System Architecture"
+  near: top-center
+  shape: text
+  style.font-size: 22
+  style.bold: true
+}
+
+direction: down
+
+# ---------------------------------------------------------------------------
+# Inputs: cloud security posture sources that flow into Security Hub
+# ---------------------------------------------------------------------------
+
+sources: "Finding Sources" {
+  style.fill: "#F5F5F5"
+  style.stroke: "#616161"
+
+  guardduty: "GuardDuty" {
+    shape: rectangle
+    style.fill: "#F3E5F5"
+    style.stroke: "#6A1B9A"
+  }
+  inspector: "Inspector" {
+    shape: rectangle
+    style.fill: "#F3E5F5"
+    style.stroke: "#6A1B9A"
+  }
+  config: "Config" {
+    shape: rectangle
+    style.fill: "#F3E5F5"
+    style.stroke: "#6A1B9A"
+  }
+  macie: "Macie" {
+    shape: rectangle
+    style.fill: "#F3E5F5"
+    style.stroke: "#6A1B9A"
+  }
+  thirdparty: "Third-party\n(Wiz, Tenable,\nPrisma, Azure*,\nGCP*, …)" {
+    shape: rectangle
+    style.fill: "#FFF8E1"
+    style.stroke: "#F57F17"
+    style.font-size: 12
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Aggregation point
+# ---------------------------------------------------------------------------
+
+securityhub: "AWS Security Hub\n(multi-region aggregator)" {
+  shape: rectangle
+  style.fill: "#F3E5F5"
+  style.stroke: "#6A1B9A"
+  style.bold: true
+  style.font-size: 14
+}
+
+# ---------------------------------------------------------------------------
+# HubAccelerator components
+# ---------------------------------------------------------------------------
+
+hubaccel: "HubAccelerator" {
+  style.fill: "#FFF3E0"
+  style.stroke: "#E65100"
+
+  exporter: "Exporter\n(CLI / Lambda / SSM)" {
+    shape: rectangle
+    style.fill: "#FFE0B2"
+    style.stroke: "#E65100"
+    style.font-size: 13
+  }
+
+  updater: "Updater\n(CLI / Lambda)" {
+    shape: rectangle
+    style.fill: "#FFE0B2"
+    style.stroke: "#E65100"
+    style.font-size: 13
+  }
+}
+
+# ---------------------------------------------------------------------------
+# Storage and analyst workflow
+# ---------------------------------------------------------------------------
+
+s3: "S3 Bucket\n(encrypted, versioned)" {
+  shape: rectangle
+  style.fill: "#E8F5E9"
+  style.stroke: "#2E7D32"
+  style.font-size: 13
+}
+
+csv: "CSV File" {
+  shape: page
+  style.fill: "#E8F5E9"
+  style.stroke: "#2E7D32"
+  style.font-size: 13
+}
+
+analyst: "Security Analyst" {
+  shape: person
+  style.fill: "#E1F5FE"
+  style.stroke: "#01579B"
+}
+
+# ---------------------------------------------------------------------------
+# Supporting AWS services
+# ---------------------------------------------------------------------------
+
+ssm: "SSM Parameter Store\n(/csvManager/*)" {
+  shape: rectangle
+  style.fill: "#E3F2FD"
+  style.stroke: "#1565C0"
+  style.font-size: 12
+}
+
+iam: "IAM Role\n(scoped: SH read,\nSH BatchUpdate,\nS3 read/write)" {
+  shape: rectangle
+  style.fill: "#E3F2FD"
+  style.stroke: "#1565C0"
+  style.font-size: 12
+}
+
+eventbridge: "EventBridge\nSchedule" {
+  shape: rectangle
+  style.fill: "#E3F2FD"
+  style.stroke: "#1565C0"
+  style.font-size: 12
+}
+
+# ---------------------------------------------------------------------------
+# Data flow
+# ---------------------------------------------------------------------------
+
+sources.guardduty -> securityhub
+sources.inspector -> securityhub
+sources.config -> securityhub
+sources.macie -> securityhub
+sources.thirdparty -> securityhub: "integrations"
+
+eventbridge -> hubaccel.exporter: "schedule trigger"
+hubaccel.exporter -> securityhub: "GetFindings\n(paginated, multi-region)"
+hubaccel.exporter -> s3: "write CSV"
+hubaccel.exporter -> ssm: "read config"
+hubaccel.exporter -> iam: "AssumeRole"
+
+s3 -> csv: "download" {style.stroke-dash: 3}
+analyst -> csv: "edit\n(Excel, vim, …)"
+csv -> hubaccel.updater: "read"
+hubaccel.updater -> securityhub: "BatchUpdateFindings\n(100 per call)"
+hubaccel.updater -> ssm: "read config"
+hubaccel.updater -> iam: "AssumeRole"
+
+# ---------------------------------------------------------------------------
+# Footnote on multi-CSP support
+# ---------------------------------------------------------------------------
+
+note: "* Azure and GCP findings reach Security Hub via\nthird-party integrations (e.g. Wiz, Prisma Cloud).\nHubAccelerator processes whatever Security Hub\naggregates, regardless of native source." {
+  shape: text
+  style.font-size: 11
+  style.italic: true
+}

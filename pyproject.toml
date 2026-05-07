@@ -26,6 +26,14 @@ dependencies = [
     "boto3>=1.26.0",
 ]
 
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "moto[securityhub,s3,ssm,sts]>=5.0",
+    "ruff>=0.5",
+]
+
 [project.scripts]
 hubaccelerator-export = "hubaccelerator.exporter:main"
 hubaccelerator-update = "hubaccelerator.updater:main"
@@ -36,3 +44,25 @@ Repository = "https://github.com/RESCOR-LLC/hubaccelerator.rescor.net"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-q --strict-markers"
+markers = [
+    "integration: tests that exercise mocked AWS APIs via moto",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP"]
+ignore = [
+    "E501",  # line length — many existing log strings are long; not worth a sweep right now
+    "E731",  # lambda assignment — used a few places intentionally
+]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/*" = ["E402"]  # tests sometimes patch env before importing
