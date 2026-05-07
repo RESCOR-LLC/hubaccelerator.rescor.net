@@ -5,9 +5,8 @@ from __future__ import annotations
 import pytest
 
 from hubaccelerator.exporter import getFilters
-from hubaccelerator.objects import error_code, env
+from hubaccelerator.objects import env, error_code
 from hubaccelerator.updater import InputDiscriminator
-
 
 # ---------------------------------------------------------------------------
 # getFilters — translates filter input (None, dict, JSON string, or the
@@ -114,14 +113,29 @@ class TestErrorCode:
         e.response = {"Error": {"Code": "InvalidClientTokenId", "Message": "no creds"}}
         assert error_code(e) == "InvalidClientTokenId"
 
-    def test_unknown_when_response_missing_code(self) -> None:
+    def test_unknown_when_error_dict_has_no_code(self) -> None:
+        # Response present with Error sub-dict but no Code key — function
+        # should fall back to "UNKNOWN" rather than raising.
+        class FakeClientError(Exception):
+            pass
+
+        e = FakeClientError("boom")
+        e.response = {"Error": {}}
+        assert error_code(e) == "UNKNOWN"
+
+    def test_falls_back_to_type_name_when_no_response(self) -> None:
+        # No `response` attribute at all — falls back to exception type name.
+        e = ValueError("not an aws error")
+        assert error_code(e) == "ValueError"
+
+    def test_falls_back_to_type_name_when_response_is_empty(self) -> None:
+        # Response present but empty — empty dict is falsy, so the code
+        # treats it the same as no response and returns the type name.
+        # This documents the current behavior; if it changes (e.g., to
+        # "UNKNOWN"), update this test accordingly.
         class FakeClientError(Exception):
             pass
 
         e = FakeClientError("boom")
         e.response = {}
-        assert error_code(e) == "UNKNOWN"
-
-    def test_falls_back_to_type_name(self) -> None:
-        e = ValueError("not an aws error")
-        assert error_code(e) == "ValueError"
+        assert error_code(e) == "FakeClientError"

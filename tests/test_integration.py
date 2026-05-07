@@ -11,13 +11,12 @@ Resources whose `Type` is "Other" and whose `Id` is a non-ARN URL."""
 
 from __future__ import annotations
 
-import io
 import csv
+import io
 from typing import Any
 
 import boto3
 import pytest
-
 
 # moto's `mock_aws` decorator works as a context manager too; we use the
 # import-time form for module-level service clients.

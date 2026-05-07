@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import os
 from typing import Any
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # Sample finding fixtures — used across unit and integration tests.
