@@ -68,3 +68,13 @@ jobs:
       - name: Synthesize CDK stack
         working-directory: cdk
         run: npx cdk synth --no-staging
+
+  track-failure:
+    name: Track failure
+    needs: [lint-and-test, cdk-synth]
+    if: failure()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: RESCOR-LLC/core.rescor.net/.github/actions/track-failure@main
+        with:
+          github-token: ${{ secrets.CI_FAILURES_TOKEN }}
