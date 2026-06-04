@@ -10,12 +10,12 @@ AWS Security Hub aggregates findings from GuardDuty, Inspector, Macie, Config, a
 
 ## What HubAccelerator Does
 
-**HubAccelerator Exporter (`csvExporter.py`)** exports Security Hub findings to a CSV file stored in S3. It can run as:
+**HubAccelerator Exporter (`hubaccelerator-export`)** exports Security Hub findings to a CSV file stored in S3. It can run as:
 - A CLI command from your workstation
 - An AWS Lambda function on a schedule (via EventBridge)
 - An SSM Automation for on-demand execution
 
-**HubAccelerator Updater (`csvUpdater.py`)** reads a modified CSV and pushes changes back to Security Hub via the `BatchUpdateFindings` API. Updatable fields include:
+**HubAccelerator Updater (`hubaccelerator-update`)** reads a modified CSV and pushes changes back to Security Hub via the `BatchUpdateFindings` API. Updatable fields include:
 - **Workflow status** — NEW, NOTIFIED, SUPPRESSED, RESOLVED
 - **Severity** — override the scanner's severity with your own assessment
 - **Confidence** — your confidence in the finding's accuracy
@@ -46,11 +46,11 @@ Both the exporter and updater support local file operations as an alternative to
 
 ```bash
 # Export to S3 and keep a local copy
-python3 src/csvExporter.py --role-arn ... --primary-region us-east-1 \
+hubaccelerator-export --role-arn ... --primary-region us-east-1 \
   --bucket my-bucket --retain-local
 
 # Edit the local CSV in Excel, then update directly from the local file
-python3 src/csvUpdater.py --role-arn ... --primary-region us-east-1 \
+hubaccelerator-update --role-arn ... --primary-region us-east-1 \
   --input /tmp/findings-2026-04-16.csv
 ```
 

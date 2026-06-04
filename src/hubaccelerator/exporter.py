@@ -6,9 +6,9 @@ This program can be invoked as an AWS Lambda function or from the command line.
 If invoked from the command line, an assumable role is required. If invoked
 from Lambda no parameters are required.
 
-python3 csvExporter.py 
-       --role-arn=[assumeableRoleArn] 
-       --regions=[commaSeaparatedRegionList]
+hubaccelerator-export
+       --role-arn=[assumeableRoleArn]
+       --regions=[commaSeparatedRegionList]
        --bucket=[s3BucketName]
        --filters=[cannedFilterName|jsonObject]
 """
@@ -196,8 +196,8 @@ def executor (role=None, region=None, filters=None, bucket=None, limit=0,
 ################################################################################
 def lambdaHandler ( event = None, context = None ):
     """
-    Perform the operations necessary if CsvExporter is invoked as a Lambda
-    function. 
+    Perform the operations necessary when hubaccelerator-export is invoked
+    as a Lambda function.
     """
     # The event keys we care about are processed below
     role = event.get("role")
